@@ -124,6 +124,23 @@
         : '<div class="empty"><b>No patients this month</b>Open the register to start typing.</div>';
     }
 
+    /* follow-ups due */
+    var fw = $('#dFollow');
+    if (fw) {
+      var due = NS.dueFollowUps(14);
+      fw.innerHTML = due.length ? '<table class="minitable"><thead><tr><th>Due</th><th>Patient</th><th style="text-align:right">OPD</th></tr></thead><tbody>' +
+        due.slice(0, 8).map(function (f) {
+          var d = new Date(f.date + 'T00:00:00');
+          var lbl = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+          return '<tr class="clickable" data-goday="' + f.seen + '" data-goi="' + f.i + '"><td>' + esc(lbl) + '</td>' +
+            '<td style="max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(f.row.name || '—') +
+            (f.row.phone ? ' <span style="color:var(--muted-2)">· ' + esc(f.row.phone) + '</span>' : '') + '</td>' +
+            '<td class="n">' + esc(f.row.opd || '—') + '</td></tr>';
+        }).join('') + '</tbody></table>'
+        + (due.length > 8 ? '<div style="padding:8px 12px;font-size:11.5px;color:var(--muted)">+' + (due.length - 8) + ' more in the next two weeks</div>' : '')
+        : '<div class="empty"><b>Nothing due</b>Set a follow-up date on a patient to see it here.</div>';
+    }
+
     /* reading / insights */
     var ins = $('#dInsights');
     if (ins) {
@@ -151,12 +168,14 @@
       var go = ev.target.closest('[data-goday]');
       if (!go) return;
       var k = go.dataset.goday;
+      var idx = go.dataset.goi;
       NS.S.curM = k.slice(0, 7);
       NS.S.curD = k;
       NS.S.open[k] = true;
       NS.syncMonthInputs();
       NS.switchView('register');
       NS.selectDay(k, true);
+      if (idx != null) setTimeout(function () { NS.openSheet(k, +idx); }, 300);
     });
     var b = $('#btnDashRegister');
     if (b) b.addEventListener('click', function () { NS.switchView('register'); });

@@ -57,6 +57,16 @@ ok('age: days convert to years', NS.ageYears('3 days') < 0.02, NS.ageYears('3 da
 eq('age: empty is null', NS.ageYears(''), null);
 eq('age: junk is null', NS.ageYears('unknown'), null);
 
+/* ---------- a date typed as an age ---------- */
+const thisYear = new Date().getFullYear();
+eq('dob: dd/mm/yyyy becomes years', NS.normaliseAge('01/01/' + (thisYear - 30)), '30');
+eq('dob: yyyy-mm-dd becomes years', NS.normaliseAge((thisYear - 40) + '-06-15'), '40');
+eq('dob: a plain age is left alone', NS.normaliseAge('34'), '34');
+eq('dob: 6 mo is left alone', NS.normaliseAge('6 mo'), '6 mo');
+eq('dob: impossible date is left alone', NS.normaliseAge('31/02/1990'), '31/02/1990');
+eq('dob: a future date is left alone', NS.normaliseAge('01/01/' + (thisYear + 2)), '01/01/' + (thisYear + 2));
+eq('dob: empty stays empty', NS.normaliseAge(''), '');
+
 /* ---------- department buckets ---------- */
 eq('dept: medicine', NS.deptK('Medicine'), 'med');
 eq('dept: gynae spelling', NS.deptK('Gynae'), 'gyn');
@@ -131,6 +141,30 @@ eq('agg: pediatrics bucket', agg.ped, 1);
 eq('agg: new vs old', [agg.newC, agg.oldC], [2, 2]);
 eq('agg: holiday day is not a working day', agg.worked, 1);
 eq('agg: per-day series length', agg.daily.length, 31);
+
+/* ---------- phone and follow-up never make a row a patient ---------- */
+ok('row: phone alone is not a patient', !NS.hasD({ phone: '9876543210' }));
+ok('row: a follow-up date alone is not a patient', !NS.hasD({ followUp: '2026-12-01' }));
+ok('row: the schema carries both fields', 'phone' in NS.ER && 'followUp' in NS.ER);
+
+/* ---------- follow-ups due ---------- */
+const soon = new Date(); soon.setDate(soon.getDate() + 3);
+const soonK = soon.getFullYear() + '-' + NS.pad(soon.getMonth() + 1) + '-' + NS.pad(soon.getDate());
+const far = new Date(); far.setDate(far.getDate() + 40);
+const farK = far.getFullYear() + '-' + NS.pad(far.getMonth() + 1) + '-' + NS.pad(far.getDate());
+NS.ensureD('2026-03-05').rows[0] = Object.assign({}, NS.ER, { opd: '200', name: 'Due Soon', followUp: soonK });
+NS.ensureD('2026-03-05').rows[1] = Object.assign({}, NS.ER, { opd: '201', name: 'Due Later', followUp: farK });
+NS.ensureD('2026-03-05').rows[2] = Object.assign({}, NS.ER, { opd: '202', name: 'No Date' });
+const due = NS.dueFollowUps(14);
+eq('follow-ups: only the one inside the window', due.length, 1);
+eq('follow-ups: the right patient', due[0].row.name, 'Due Soon');
+eq('follow-ups: knows where it came from', due[0].seen, '2026-03-05');
+ok('follow-ups: carries the row index', typeof due[0].i === 'number');
+
+/* ---------- department memory ---------- */
+const dh = NS.deptHistory(5);
+ok('dept history: most used first', dh.length > 0 && dh[0].n >= dh[dh.length - 1].n, dh);
+ok('dept history: labels preserved', dh.some(function (d) { return d.label === 'Medicine'; }), dh);
 
 /* ---------- day scaffolding ---------- */
 const e = NS.ensureD('2026-03-03');

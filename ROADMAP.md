@@ -3,18 +3,22 @@
 Ordered by *value per line of code*. Everything here is meant to be small enough to keep the
 app one file — the moment a feature needs a framework, it belongs in another project.
 
+## Shipped in 3.1.0
+
+Follow-up date + mobile number · follow-ups-due panel · monthly digest · duplicate patient ·
+DOB→age · department memory · bulk day status · print one day · undo an import.
+
 ## Next (small, high value)
 
 | Item | Why | Cost |
 |---|---|---|
-| **Weekly / monthly digest** — one screen: patients per day, per department, new-vs-old, printed on one page | What a clinic actually reports upward | S |
-| **Duplicate the last patient** (Ctrl+D) — same family, next member | Common in an OPD queue | XS |
-| **Age from date of birth** — type `12/04/1987`, store the age | Removes the arithmetic error in the commonest field | S |
-| **Mobile number + follow-up date** on a row, with "due this week" list | Two fields, one new panel; the register becomes a worklist | M |
-| **Free-text department memory** — a chip row of the departments you actually use | The datalist is a fixed four | XS |
-| **Bulk day actions** — mark a range as holiday, or copy a day's status | Camps and festival weeks | S |
-| **Print a single day** — an A4 slip for the day's file | The register is printed, but so is one day | S |
-| **Undo for import** — keep the previous database in memory for one step | Import replaces everything today | S |
+| **Patient history panel** — every visit for one OPD number, oldest first, with the gaps | The question actually asked in the room is "what did I give last time" | M |
+| **Suggest the next OPD number** from the last one typed today (never owned, only suggested) | Typing the series by hand invites a duplicate | S |
+| **Filter the rows of a day** by a word, on the day header | A nine-patient day is fine; a thirty-patient camp is not | S |
+| **Infants as months** — show `8 mo` instead of `0` wherever an age is printed | `0y` in a pediatric line reads like a bug | XS |
+| **Undo for a bulk day range** — the same toast as a single day | The most destructive action in the app today has no undo | S |
+| **Copy a previous visit's diagnosis + treatment** into a new row of the same patient | Duplicate covers the person, not the prescription | S |
+| **A weekly view** — seven day columns, for a week at a glance | The month is long; the week is what gets reviewed | M |
 
 ## Then (worth the code)
 

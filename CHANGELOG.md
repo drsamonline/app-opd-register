@@ -1,5 +1,34 @@
 # Changelog
 
+## 3.1.0 — 2026-11-11
+
+The first tier of the roadmap, all of it small enough to stay one file.
+
+### Added
+- **Follow-up date and mobile number** on every row, in the grid and in the phone editor.
+  Neither counts as a patient on its own, so a stray date can never inflate a total.
+- **Follow-ups due** panel on the dashboard — everyone due in the next 14 days, with the
+  phone number; a click opens that patient.
+- **Monthly digest** in Statistics: one printable page — totals, department share, every day
+  with its status and note, and a signature line.
+- **Duplicate patient** — Ctrl+D, or the copy button in the editor. OPD number and follow-up
+  date are cleared on the copy, because they belong to the visit, not the person.
+- **A date typed into Age becomes an age** (`01/01/1990` → 35), so the arithmetic that goes
+  wrong most often is done for you.
+- **Department memory** — the editor offers the departments this location actually uses,
+  most used first, with counts.
+- **Mark a range of days** holiday / non-working / no-activity with one note, for a festival
+  week or a camp.
+- **Print one day** on its own, from that day's header.
+- **Undo an import** — the previous database is held for one step.
+
+### Changed
+- Register grid widened to thirteen columns; column widths fixed so every day lines up.
+- `sw.js` precaches the icon set; cache version bumped to `opd-v3.1.0`.
+
+### Tests
+- 77 node checks (was 61) and 66 browser checks (was 53).
+
 ## 3.0.0 — 2026-11-11
 
 A redesign and a rebuild of the v2 single file. Same data, same key

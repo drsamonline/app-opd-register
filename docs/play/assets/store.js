@@ -17,8 +17,12 @@
     noactivity: { l: 'No activity',   s: 'No activity',cls: 'noactivity' }
   };
   var SO = ['working', 'holiday', 'nonworking', 'noactivity'];
-  var ER = { opd: '', caseType: 'New', department: '', name: '', age: '', sex: '', address: '', diagnosis: '', treatment: '' };
+  var ER = { opd: '', caseType: 'New', department: '', name: '', age: '', sex: '',
+             address: '', diagnosis: '', treatment: '', phone: '', followUp: '' };
+  /* DF decides what makes a row a patient. Phone and follow-up date are deliberately
+     NOT in it: a date alone is not a patient, and counting it would inflate every total. */
   var DF = ['opd', 'department', 'name', 'age', 'address', 'diagnosis', 'treatment'];
+  var DF_ALL = ['opd', 'caseType', 'department', 'name', 'age', 'sex', 'address', 'diagnosis', 'treatment', 'phone', 'followUp'];
 
   /* ---------- helpers ---------- */
   var $ = function (s, r) { return (r || document).querySelector(s); };
@@ -63,6 +67,27 @@
     if (/day|d\b/.test(s)) return n / 365;
     return n;
   }
+  /* dd/mm/yyyy or yyyy-mm-dd typed into Age -> years. Anything else is returned untouched. */
+  function normaliseAge(v) {
+    var s = String(v == null ? '' : v).trim();
+    if (!s) return '';
+    var m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+    var y, mo, d;
+    if (m) { d = +m[1]; mo = +m[2]; y = +m[3]; }
+    else {
+      var m2 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (!m2) return s;
+      y = +m2[1]; mo = +m2[2]; d = +m2[3];
+    }
+    if (y < 100) y += (y > 30 ? 1900 : 2000);
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return s;
+    var dt = new Date(y, mo - 1, d);
+    if (isNaN(dt.getTime()) || dt.getMonth() !== mo - 1) return s;
+    var years = (Date.now() - dt.getTime()) / (365.2425 * 864e5);
+    if (years < 0 || years >= 130) return s;
+    return String(Math.floor(years));
+  }
+
   /* department bucket: med / surg / gyn / ped / '' */
   function deptK(d) {
     d = String(d || '').trim().toLowerCase();
@@ -252,6 +277,40 @@
     return null;
   }
 
+  /* follow-ups due in the next N days, across the current location, oldest first */
+  function dueFollowUps(days) {
+    days = days == null ? 14 : days;
+    var today = todayKey(), E = ent(), out = [];
+    var limit = new Date(); limit.setDate(limit.getDate() + days);
+    var limK = limit.getFullYear() + '-' + pad(limit.getMonth() + 1) + '-' + pad(limit.getDate());
+    Object.keys(E).forEach(function (k) {
+      ((E[k] || {}).rows || []).forEach(function (r, i) {
+        var f = String(r.followUp || '').trim();
+        if (!f || f < today || f > limK) return;
+        out.push({ date: f, seen: k, i: i, row: r, overdue: false });
+      });
+    });
+    out.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+    return out;
+  }
+
+  /* the departments used in this location, most used first */
+  function deptHistory(limit) {
+    var counts = {}, E = ent();
+    Object.keys(E).forEach(function (k) {
+      ((E[k] || {}).rows || []).forEach(function (r) {
+        var d = String(r.department || '').trim();
+        if (!d) return;
+        var key = d.toLowerCase();
+        counts[key] = counts[key] || { label: d, n: 0 };
+        counts[key].n++;
+      });
+    });
+    return Object.keys(counts).map(function (k) { return counts[k]; })
+      .sort(function (a, b) { return b.n - a.n || a.label.localeCompare(b.label); })
+      .slice(0, limit || 8);
+  }
+
   /* ---------- toast + undo ---------- */
   var toastT = null, toastAct = null;
   function toast(msg, actionLabel, action) {
@@ -357,8 +416,10 @@
           if (typeof e.note !== 'string') e.note = '';
         });
       });
+      var previous = DB;
       DB = next;
       saveNow();
+      if (NS.onImported) NS.onImported(previous);
       emit('location'); emit('changed');
       toast('Imported ' + Object.keys(DB.locations).length + ' location(s).');
       if (done) done();
@@ -396,7 +457,14 @@
           sex: sex,
           address: ['Akota','Alkapuri','Gorwa','Karelibaug','Manjalpur'][(d + i) % 5],
           diagnosis: dx[(d + i) % dx.length],
-          treatment: tx[(d + i) % tx.length]
+          treatment: tx[(d + i) % tx.length],
+          phone: '9' + String(700000000 + ((d * 37 + i * 911) % 99999999)).slice(0, 9),
+          followUp: ((d + i) % 3 === 0)
+            ? (function () {
+                var f = new Date(); f.setDate(f.getDate() + ((d + i) % 18) + 1);
+                return f.getFullYear() + '-' + pad(f.getMonth() + 1) + '-' + pad(f.getDate());
+              })()
+            : ''
         };
       }
       while (rows.length < Math.max(DROWS, count + 1)) rows.push(Object.assign({}, ER));
@@ -409,6 +477,7 @@
   NS.$ = $; NS.$$ = $$; NS.esc = esc; NS.pad = pad; NS.dim = dim;
   NS.tKey = todayKey; NS.mKey = mKey; NS.fmtDay = fmtDay; NS.fmtMonth = fmtMonth; NS.fmtMonthShort = fmtMonthShort;
   NS.hasD = hasD; NS.blankRows = blankRows; NS.ageYears = ageYears; NS.deptK = deptK; NS.debounce = debounce;
+  NS.normaliseAge = normaliseAge; NS.dueFollowUps = dueFollowUps; NS.deptHistory = deptHistory; NS.DF_ALL = DF_ALL;
   NS.ER = ER; NS.DF = DF; NS.DROWS = DROWS; NS.ST = ST; NS.SO = SO;
   NS.S = S;
   Object.defineProperty(NS, 'db', { get: function () { return DB; } });

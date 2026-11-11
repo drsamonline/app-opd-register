@@ -340,7 +340,7 @@ main{grid-area:main;min-width:0;padding:14px 16px 28px;overflow-x:hidden}
 
 /* desktop table */
 .tablewrap{overflow:auto;max-height:calc(100dvh - 320px)}
-table.reg{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:1080px}
+table.reg{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:1248px}
 table.reg thead th{
   position:sticky;top:0;z-index:5;background:var(--panel);
   font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted-2);
@@ -433,6 +433,50 @@ tr:hover .rowdel{opacity:1}
   padding-bottom:calc(12px + env(safe-area-inset-bottom));background:var(--panel);
 }
 .sheet .sf .btn{flex:1;min-height:44px}
+
+.rangepanel{
+  display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;
+  padding:10px 12px;background:var(--accent-l);border-bottom:1px solid var(--line);
+}
+.rangepanel label{display:flex;flex-direction:column;gap:3px;font-size:10.5px;font-weight:800;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.rangepanel .grow{flex:1;min-width:150px}
+.rangepanel input,.rangepanel select{
+  height:32px;padding:0 8px;border:1px solid var(--line);border-radius:7px;background:var(--panel);
+  font-size:12.5px;font-weight:600;color:var(--ink-2);text-transform:none;letter-spacing:0;
+}
+.rangepanel input:focus,.rangepanel select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--panel)}
+
+.pcard .due{display:block;font-size:10.5px;font-weight:700;color:var(--warn);margin-top:2px}
+table.reg td input[type="date"].cellin{padding:0 2px;font-size:11.5px}
+table.reg td input[type="date"]::-webkit-calendar-picker-indicator{opacity:.45;cursor:pointer}
+
+/* one day, printed on its own */
+@media print{
+  body.printing-day .calhead,body.printing-day .dowrow,body.printing-day .cal,
+  body.printing-day .regbar,body.printing-day #rangePanel{display:none!important}
+  body.printing-day .day:not(.printing){display:none!important}
+  body.printing-day .printing .dayhead{position:static}
+}
+
+/* the digest */
+.digest{background:#fff;color:#0b1220;padding:0 0 6px}
+.digest h2{font-size:17px;font-weight:750;letter-spacing:-.02em}
+.digest .dhead{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;border-bottom:2px solid #0b1220;padding-bottom:8px}
+.digest .dhead .grow{flex:1}
+.digest .dhead small{display:block;font-size:11.5px;color:#64748b;font-weight:600}
+.digest .dk{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:#dbe3ee;border:1px solid #dbe3ee;margin:12px 0}
+.digest .dk div{background:#fff;padding:8px 10px}
+.digest .dk b{display:block;font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.digest .dk span{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:800}
+.digest table{width:100%;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums}
+.digest th{background:#f1f5f9;text-align:right;padding:5px 8px;border:1px solid #dbe3ee;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#475569}
+.digest th:first-child,.digest td:first-child{text-align:left}
+.digest td{padding:4px 8px;border:1px solid #e8eef5}
+.digest tr.total td{font-weight:800;background:#eaf1ff}
+.digest .cols2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}
+.digest .sign{margin-top:18px;display:flex;justify-content:space-between;font-size:11px;color:#64748b;border-top:1px solid #dbe3ee;padding-top:8px}
+@media print{.digest .dk div,.digest th,.digest tr.total td{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
 
 /* ---------------- stats ---------------- */
 .segmented{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel-2)}
@@ -784,6 +828,11 @@ table.st td.z{color:var(--muted-2)}
         </section>
 
         <section class="panel">
+          <div class="ph"><h2>Follow-ups due</h2><span class="hint">next 14 days</span></div>
+          <div class="pb flush"><div id="dFollow"></div></div>
+        </section>
+
+        <section class="panel">
           <div class="ph"><h2>Reading</h2><span class="hint">auto</span></div>
           <div class="pb"><div class="bars" id="dInsights"></div></div>
         </section>
@@ -826,7 +875,23 @@ table.st td.z{color:var(--muted-2)}
             <button data-filter="today" aria-pressed="false">Today</button>
           </div>
           <div class="grow"></div>
+          <button class="btn sm ghost" id="btnRange" aria-expanded="false" title="Mark a range of days">Days…</button>
           <div class="chips" id="chips" aria-label="Recent patients"></div>
+        </div>
+        <div class="rangepanel" id="rangePanel" hidden>
+          <label>From <input type="date" id="rangeFrom"/></label>
+          <label>To <input type="date" id="rangeTo"/></label>
+          <label>Mark as
+            <select id="rangeStatus">
+              <option value="working">Working day</option>
+              <option value="holiday">Holiday</option>
+              <option value="nonworking">Non-working</option>
+              <option value="noactivity">No activity</option>
+            </select>
+          </label>
+          <label class="grow">Note <input type="text" id="rangeNote" placeholder="e.g. Diwali week, free camp" maxlength="80"/></label>
+          <button class="btn primary sm" id="rangeApply">Apply</button>
+          <button class="btn sm ghost" id="rangeCancel">Cancel</button>
         </div>
         <div id="days"></div>
       </section>
@@ -840,6 +905,7 @@ table.st td.z{color:var(--muted-2)}
           <div class="sub">Day-wise, month-wise or any date range — pick your columns</div>
         </div>
         <div class="grow"></div>
+        <button class="btn sm" id="btnDigest" title="One printable page for the month">Digest</button>
         <button class="btn sm" id="btnStatPrint"><svg width="14" height="14"><use href="#i-print"/></svg>Print</button>
         <button class="btn sm" id="btnStatExcel"><svg width="14" height="14"><use href="#i-down"/></svg>Excel</button>
         <button class="btn sm" id="btnStatCsv"><svg width="14" height="14"><use href="#i-down"/></svg>CSV</button>
@@ -1033,6 +1099,9 @@ table.st td.z{color:var(--muted-2)}
       <div class="field"><label for="f-age">Age</label><input id="f-age" data-f="age" inputmode="text" autocomplete="off" placeholder="34 / 6 mo"/></div>
       <div class="field"><label for="f-sex">Sex</label><select id="f-sex" data-f="sex"><option value="">—</option><option value="M">Male</option><option value="F">Female</option><option value="O">Other</option></select></div>
       <div class="field full"><label for="f-department">Department</label><input id="f-department" data-f="department" autocomplete="off" list="deptList" placeholder="Medicine…"/></div>
+      <div class="chips full" id="deptChips" style="margin-top:-4px"></div>
+      <div class="field"><label for="f-phone">Mobile</label><input id="f-phone" data-f="phone" inputmode="tel" autocomplete="off" placeholder="Optional"/></div>
+      <div class="field"><label for="f-followUp">Follow-up</label><input id="f-followUp" data-f="followUp" type="date"/></div>
       <div class="field full"><label for="f-address">Address</label><input id="f-address" data-f="address" autocomplete="off" placeholder="Village / area"/></div>
       <div class="field full"><label for="f-diagnosis">Diagnosis</label><input id="f-diagnosis" data-f="diagnosis" autocomplete="off" placeholder="Provisional diagnosis"/></div>
       <div class="field full"><label for="f-treatment">Treatment</label><textarea id="f-treatment" data-f="treatment" placeholder="Advice / prescription summary"></textarea></div>
@@ -1040,7 +1109,8 @@ table.st td.z{color:var(--muted-2)}
     <p id="sheetHint" style="font-size:11.5px;color:var(--muted-2)">Saves as you type.</p>
   </div>
   <div class="sf">
-    <button class="btn danger" id="btnSheetDel"><svg width="15" height="15"><use href="#i-trash"/></svg></button>
+    <button class="btn danger" id="btnSheetDel" title="Delete" aria-label="Delete this patient"><svg width="15" height="15"><use href="#i-trash"/></svg></button>
+    <button class="btn" id="btnSheetDup" title="Duplicate (Ctrl+D)" aria-label="Duplicate this patient"><svg width="15" height="15"><use href="#i-copy"/></svg></button>
     <button class="btn" id="btnSheetPrev">Previous</button>
     <button class="btn primary" id="btnSheetSave">Done</button>
   </div>
@@ -1082,8 +1152,12 @@ table.st td.z{color:var(--muted-2)}
     noactivity: { l: 'No activity',   s: 'No activity',cls: 'noactivity' }
   };
   var SO = ['working', 'holiday', 'nonworking', 'noactivity'];
-  var ER = { opd: '', caseType: 'New', department: '', name: '', age: '', sex: '', address: '', diagnosis: '', treatment: '' };
+  var ER = { opd: '', caseType: 'New', department: '', name: '', age: '', sex: '',
+             address: '', diagnosis: '', treatment: '', phone: '', followUp: '' };
+  /* DF decides what makes a row a patient. Phone and follow-up date are deliberately
+     NOT in it: a date alone is not a patient, and counting it would inflate every total. */
   var DF = ['opd', 'department', 'name', 'age', 'address', 'diagnosis', 'treatment'];
+  var DF_ALL = ['opd', 'caseType', 'department', 'name', 'age', 'sex', 'address', 'diagnosis', 'treatment', 'phone', 'followUp'];
 
   /* ---------- helpers ---------- */
   var $ = function (s, r) { return (r || document).querySelector(s); };
@@ -1128,6 +1202,27 @@ table.st td.z{color:var(--muted-2)}
     if (/day|d\b/.test(s)) return n / 365;
     return n;
   }
+  /* dd/mm/yyyy or yyyy-mm-dd typed into Age -> years. Anything else is returned untouched. */
+  function normaliseAge(v) {
+    var s = String(v == null ? '' : v).trim();
+    if (!s) return '';
+    var m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+    var y, mo, d;
+    if (m) { d = +m[1]; mo = +m[2]; y = +m[3]; }
+    else {
+      var m2 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (!m2) return s;
+      y = +m2[1]; mo = +m2[2]; d = +m2[3];
+    }
+    if (y < 100) y += (y > 30 ? 1900 : 2000);
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return s;
+    var dt = new Date(y, mo - 1, d);
+    if (isNaN(dt.getTime()) || dt.getMonth() !== mo - 1) return s;
+    var years = (Date.now() - dt.getTime()) / (365.2425 * 864e5);
+    if (years < 0 || years >= 130) return s;
+    return String(Math.floor(years));
+  }
+
   /* department bucket: med / surg / gyn / ped / '' */
   function deptK(d) {
     d = String(d || '').trim().toLowerCase();
@@ -1317,6 +1412,40 @@ table.st td.z{color:var(--muted-2)}
     return null;
   }
 
+  /* follow-ups due in the next N days, across the current location, oldest first */
+  function dueFollowUps(days) {
+    days = days == null ? 14 : days;
+    var today = todayKey(), E = ent(), out = [];
+    var limit = new Date(); limit.setDate(limit.getDate() + days);
+    var limK = limit.getFullYear() + '-' + pad(limit.getMonth() + 1) + '-' + pad(limit.getDate());
+    Object.keys(E).forEach(function (k) {
+      ((E[k] || {}).rows || []).forEach(function (r, i) {
+        var f = String(r.followUp || '').trim();
+        if (!f || f < today || f > limK) return;
+        out.push({ date: f, seen: k, i: i, row: r, overdue: false });
+      });
+    });
+    out.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+    return out;
+  }
+
+  /* the departments used in this location, most used first */
+  function deptHistory(limit) {
+    var counts = {}, E = ent();
+    Object.keys(E).forEach(function (k) {
+      ((E[k] || {}).rows || []).forEach(function (r) {
+        var d = String(r.department || '').trim();
+        if (!d) return;
+        var key = d.toLowerCase();
+        counts[key] = counts[key] || { label: d, n: 0 };
+        counts[key].n++;
+      });
+    });
+    return Object.keys(counts).map(function (k) { return counts[k]; })
+      .sort(function (a, b) { return b.n - a.n || a.label.localeCompare(b.label); })
+      .slice(0, limit || 8);
+  }
+
   /* ---------- toast + undo ---------- */
   var toastT = null, toastAct = null;
   function toast(msg, actionLabel, action) {
@@ -1422,8 +1551,10 @@ table.st td.z{color:var(--muted-2)}
           if (typeof e.note !== 'string') e.note = '';
         });
       });
+      var previous = DB;
       DB = next;
       saveNow();
+      if (NS.onImported) NS.onImported(previous);
       emit('location'); emit('changed');
       toast('Imported ' + Object.keys(DB.locations).length + ' location(s).');
       if (done) done();
@@ -1461,7 +1592,14 @@ table.st td.z{color:var(--muted-2)}
           sex: sex,
           address: ['Akota','Alkapuri','Gorwa','Karelibaug','Manjalpur'][(d + i) % 5],
           diagnosis: dx[(d + i) % dx.length],
-          treatment: tx[(d + i) % tx.length]
+          treatment: tx[(d + i) % tx.length],
+          phone: '9' + String(700000000 + ((d * 37 + i * 911) % 99999999)).slice(0, 9),
+          followUp: ((d + i) % 3 === 0)
+            ? (function () {
+                var f = new Date(); f.setDate(f.getDate() + ((d + i) % 18) + 1);
+                return f.getFullYear() + '-' + pad(f.getMonth() + 1) + '-' + pad(f.getDate());
+              })()
+            : ''
         };
       }
       while (rows.length < Math.max(DROWS, count + 1)) rows.push(Object.assign({}, ER));
@@ -1474,6 +1612,7 @@ table.st td.z{color:var(--muted-2)}
   NS.$ = $; NS.$$ = $$; NS.esc = esc; NS.pad = pad; NS.dim = dim;
   NS.tKey = todayKey; NS.mKey = mKey; NS.fmtDay = fmtDay; NS.fmtMonth = fmtMonth; NS.fmtMonthShort = fmtMonthShort;
   NS.hasD = hasD; NS.blankRows = blankRows; NS.ageYears = ageYears; NS.deptK = deptK; NS.debounce = debounce;
+  NS.normaliseAge = normaliseAge; NS.dueFollowUps = dueFollowUps; NS.deptHistory = deptHistory; NS.DF_ALL = DF_ALL;
   NS.ER = ER; NS.DF = DF; NS.DROWS = DROWS; NS.ST = ST; NS.SO = SO;
   NS.S = S;
   Object.defineProperty(NS, 'db', { get: function () { return DB; } });
@@ -1558,7 +1697,7 @@ table.st td.z{color:var(--muted-2)}
   }
 
   /* ================= ROW MARKUP (desktop) ================= */
-  var COLS = [34, 92, 58, 126, 150, 52, 50, 150, 168, 176, 30];
+  var COLS = [34, 90, 56, 124, 148, 50, 48, 98, 132, 158, 164, 86, 30];
   function sel(v, cur) { return v === cur ? ' selected' : ''; }
 
   function rowHTML(r, i) {
@@ -1571,15 +1710,17 @@ table.st td.z{color:var(--muted-2)}
       '<td><select class="cellin" data-f="sex">' + ['', 'M', 'F', 'O'].map(function (s) {
         return '<option value="' + s + '"' + sel(s, r.sex) + '>' + (s || '—') + '</option>';
       }).join('') + '</select></td>' +
+      '<td><input class="cellin num" data-f="phone" inputmode="tel" autocomplete="off" placeholder="Mobile" value="' + esc(r.phone) + '"></td>' +
       '<td><input class="cellin" data-f="address" autocomplete="off" placeholder="Address" value="' + esc(r.address) + '"></td>' +
       '<td><input class="cellin" data-f="diagnosis" autocomplete="off" placeholder="Diagnosis" value="' + esc(r.diagnosis) + '"></td>' +
       '<td><input class="cellin" data-f="treatment" autocomplete="off" placeholder="Treatment" value="' + esc(r.treatment) + '"></td>' +
+      '<td><input class="cellin num" data-f="followUp" type="date" value="' + esc(r.followUp) + '" title="Follow-up date"></td>' +
       '<td class="acts"><button class="rowdel" data-del="' + i + '" title="Delete row" aria-label="Delete row">&times;</button></td>';
   }
 
   function tableHTML(k, rows) {
     var cg = '<colgroup>' + COLS.map(function (w) { return '<col style="width:' + w + 'px">'; }).join('') + '</colgroup>';
-    var head = '<thead><tr><th>#</th><th>OPD no.</th><th>Case</th><th>Department</th><th>Name</th><th>Age</th><th>Sex</th><th>Address</th><th>Diagnosis</th><th>Treatment</th><th></th></tr></thead>';
+    var head = '<thead><tr><th>#</th><th>OPD no.</th><th>Case</th><th>Department</th><th>Name</th><th>Age</th><th>Sex</th><th>Mobile</th><th>Address</th><th>Diagnosis</th><th>Treatment</th><th>Follow-up</th><th></th></tr></thead>';
     var body = rows.map(function (r, i) {
       return '<tr class="drow" data-date="' + k + '" data-idx="' + i + '">' + rowHTML(r, i) + '</tr>';
     }).join('');
@@ -1592,11 +1733,12 @@ table.st td.z{color:var(--muted-2)}
       var ini = (r.name || '?').trim().split(/\s+/).map(function (w) { return w[0] || ''; }).join('').slice(0, 2).toUpperCase();
       var meta = [r.age ? r.age + 'y' : '', r.sex === 'M' ? 'Male' : r.sex === 'F' ? 'Female' : r.sex === 'O' ? 'Other' : '', r.department || '', r.diagnosis || '']
         .filter(Boolean).join(' · ');
+      var due = r.followUp ? '<span class="due">↻ ' + esc(r.followUp.slice(8) + '/' + r.followUp.slice(5, 7)) + '</span>' : '';
       return '<button class="pcard" data-open="' + i + '">' +
         '<span class="ava">' + esc(ini) + '</span>' +
         '<span class="pm"><span class="pn">' + esc(r.name || 'Unnamed') + '</span>' +
         '<span class="pd">' + esc(meta || 'No details yet') + '</span></span>' +
-        '<span class="pt num">' + esc(r.opd || '—') + '</span></button>';
+        '<span class="pt num">' + esc(r.opd || '—') + due + '</span></button>';
     }).join('');
     var filled = rows.filter(NS.hasD).length;
     var empty = rows.length - filled;
@@ -1622,6 +1764,7 @@ table.st td.z{color:var(--muted-2)}
       '<input class="note" data-dnote="' + k + '" placeholder="Note — camp, festival, half day…" value="' + esc(e.note || '') + '">' +
       '<span class="dayacts">' +
       '<button data-add="' + k + '" title="Add a patient row" aria-label="Add a patient row"><svg width="14" height="14"><use href="#i-plus"/></svg></button>' +
+      '<button data-printday="' + k + '" title="Print this day" aria-label="Print this day"><svg width="13" height="13"><use href="#i-print"/></svg></button>' +
       '<button class="danger" data-clear="' + k + '" title="Clear this day" aria-label="Clear this day"><svg width="13" height="13"><use href="#i-trash"/></svg></button>' +
       '</span></div>';
     if (open) h += narrow() ? cardsHTML(k, e.rows) : tableHTML(k, e.rows);
@@ -1716,6 +1859,24 @@ table.st td.z{color:var(--muted-2)}
     return i;
   }
 
+  function printDay(k) {
+    NS.saveNow();
+    S.open[k] = true;
+    renderRegister();
+    var day = document.querySelector('.day[data-date="' + k + '"]');
+    if (!day) return;
+    $$('.day').forEach(function (d) { d.classList.remove('printing'); });
+    day.classList.add('printing');
+    document.body.classList.add('printing-day');
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () {
+        document.body.classList.remove('printing-day');
+        day.classList.remove('printing');
+      }, 400);
+    }, 40);
+  }
+
   function clearDay(k) {
     var snap = NS.daySnapshot(k);
     NS.ent()[k] = { status: 'working', note: '', rows: NS.blankRows(NS.DROWS) };
@@ -1729,6 +1890,20 @@ table.st td.z{color:var(--muted-2)}
     while (e.rows.length < NS.DROWS) e.rows.push(Object.assign({}, NS.ER));
     NS.saveNow(); renderRegister(); refOpdList();
     NS.toast('Row deleted.', 'Undo', function () { NS.restoreDay(k, snap); renderAll(); });
+  }
+
+  /* copy a patient into the next free row of the same day — families arrive together */
+  function duplicate(k, i) {
+    var e = NS.ensureD(k);
+    var src = e.rows[i];
+    if (!src || !NS.hasD(src)) { NS.toast('Nothing to duplicate in that row.'); return null; }
+    var j = e.rows.findIndex(function (r) { return !NS.hasD(r); });
+    if (j === -1) { e.rows.push(Object.assign({}, NS.ER)); j = e.rows.length - 1; }
+    e.rows[j] = Object.assign({}, src, { opd: '', followUp: '' });
+    S.open[k] = true;
+    NS.saveNow(); renderRegister();
+    NS.toast('Copied to row ' + (j + 1) + ' — add the OPD number.');
+    return j;
   }
 
   function autofill(tr, k, i, rec) {
@@ -1762,6 +1937,21 @@ table.st td.z{color:var(--muted-2)}
   /* ================= patient sheet ================= */
   var sheetCtx = { k: null, i: null, prevFocus: null };
 
+  /* the departments this location actually uses, most used first */
+  function renderDeptChips() {
+    var box = $('#deptChips');
+    if (!box) return;
+    var cur = String(($('#f-department') || {}).value || '').trim().toLowerCase();
+    var list = NS.deptHistory(8);
+    box.style.display = list.length ? '' : 'none';
+    box.innerHTML = list.map(function (d) {
+      var on = d.label.toLowerCase() === cur;
+      return '<button type="button" class="chip" data-dept="' + esc(d.label) + '"' +
+        (on ? ' style="border-color:var(--accent);background:var(--accent-l);color:var(--accent-d)"' : '') +
+        '>' + esc(d.label) + ' <small>' + d.n + '</small></button>';
+    }).join('');
+  }
+
   function openSheet(k, i) {
     sheetCtx.k = k; sheetCtx.i = i; sheetCtx.prevFocus = document.activeElement;
     var e = NS.ensureD(k);
@@ -1781,6 +1971,8 @@ table.st td.z{color:var(--muted-2)}
     });
     var has = NS.hasD(row);
     $('#btnSheetDel').style.visibility = has ? 'visible' : 'hidden';
+    $('#btnSheetDup').style.visibility = has ? 'visible' : 'hidden';
+    renderDeptChips();
     $('#sheetHint').textContent = has ? 'Editing ' + (row.name || 'this patient') + ' — changes save as you type.' : 'Saves as you type.';
     $('#sheet').classList.add('on');
     $('#sheet').setAttribute('aria-hidden', 'false');
@@ -1795,6 +1987,7 @@ table.st td.z{color:var(--muted-2)}
     $('#scrim').classList.remove('on');
     document.body.style.overflow = '';
     renderRegister(); renderCal(); renderChips(); refOpdList();
+    if (NS.renderDashboard) NS.renderDashboard();
     if (sheetCtx.prevFocus && document.contains(sheetCtx.prevFocus)) sheetCtx.prevFocus.focus();
   }
 
@@ -1829,6 +2022,11 @@ table.st td.z{color:var(--muted-2)}
       if (!el.dataset || !el.dataset.f) return;
       var e = NS.ensureD(sheetCtx.k), row = e.rows[sheetCtx.i];
       if (!row) return;
+      if (el.dataset.f === 'age') {
+        var convAge = NS.normaliseAge(el.value);
+        if (convAge !== el.value) { el.value = convAge; NS.toast('Age from date of birth: ' + convAge + ' years.'); }
+      }
+      if (el.dataset.f === 'department') renderDeptChips();
       row[el.dataset.f] = el.value;
       if (el.dataset.f === 'opd') {
         var rec = NS.findCase(el.value);
@@ -1862,6 +2060,26 @@ table.st td.z{color:var(--muted-2)}
       }
     });
 
+    $('#deptChips').addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-dept]');
+      if (!b) return;
+      var inp = $('#f-department');
+      if (!inp) return;
+      inp.value = b.dataset.dept;
+      var e = NS.ensureD(sheetCtx.k), row = e.rows[sheetCtx.i];
+      if (row) row.department = b.dataset.dept;
+      renderDeptChips();
+      NS.sched();
+    });
+
+    $('#btnSheetDup').addEventListener('click', function () {
+      var k = sheetCtx.k, i = sheetCtx.i;
+      NS.saveNow();
+      var j = duplicate(k, i);
+      if (j == null) return;
+      openSheet(k, j);
+    });
+
     $('#btnSheetClose').addEventListener('click', closeSheet);
     $('#scrim').addEventListener('click', closeSheet);
     $('#btnSheetSave').addEventListener('click', function () { NS.saveNow(); closeSheet(); });
@@ -1878,6 +2096,24 @@ table.st td.z{color:var(--muted-2)}
   }
 
   /* ================= events ================= */
+  function applyRange(from, to, status, note) {
+    if (!from || !to) { NS.toast('Pick both dates.'); return 0; }
+    if (from > to) { var t = from; from = to; to = t; }
+    var cur = new Date(from + 'T00:00:00'), end = new Date(to + 'T00:00:00');
+    var n = 0, guard = 0;
+    while (cur <= end && guard < 400) {
+      var k = cur.getFullYear() + '-' + pad(cur.getMonth() + 1) + '-' + pad(cur.getDate());
+      var e = NS.ensureD(k);
+      e.status = status;
+      if (note) e.note = note;
+      n++;
+      cur.setDate(cur.getDate() + 1); guard++;
+    }
+    NS.saveNow(); renderAll();
+    NS.toast(n + ' day' + (n === 1 ? '' : 's') + ' marked ' + NS.ST[status].l.toLowerCase() + '.');
+    return n;
+  }
+
   function bind() {
     var host = $('#days');
 
@@ -1916,6 +2152,11 @@ table.st td.z{color:var(--muted-2)}
       if (!tr) return;
       var kk = tr.dataset.date, ii = +tr.dataset.idx, e = NS.ensureD(kk);
       if (!e.rows[ii]) return;
+      if (el.dataset.f === 'age') {
+        var conv = NS.normaliseAge(el.value);
+        if (conv !== el.value) { el.value = conv; NS.toast('Age from date of birth: ' + conv + ' years.'); }
+        el.value = conv;
+      }
       e.rows[ii][el.dataset.f] = el.value;
       NS.saveNow(); updateCount(kk);
       if (el.dataset.f === 'opd') {
@@ -1928,6 +2169,8 @@ table.st td.z{color:var(--muted-2)}
     host.addEventListener('click', function (ev) {
       var add = ev.target.closest('[data-add]');
       if (add) { addRow(add.dataset.add, !narrow()); return; }
+      var pd = ev.target.closest('[data-printday]');
+      if (pd) { printDay(pd.dataset.printday); return; }
       var clr = ev.target.closest('[data-clear]');
       if (clr) {
         if (!confirm('Clear every patient and the note for this day?')) return;
@@ -2042,7 +2285,25 @@ table.st td.z{color:var(--muted-2)}
     NS.emit('render');
   }
 
+  /* Ctrl+D: duplicate whichever patient is in front of the user */
+  function duplicateCurrent() {
+    if ($('#sheet').classList.contains('on')) {
+      NS.saveNow();
+      var j = duplicate(sheetCtx.k, sheetCtx.i);
+      if (j != null) openSheet(sheetCtx.k, j);
+      return true;
+    }
+    var tr = document.activeElement && document.activeElement.closest ? document.activeElement.closest('tr.drow') : null;
+    if (!tr) { NS.toast('Open a patient (or click a row) first, then Ctrl+D.'); return false; }
+    duplicate(tr.dataset.date, +tr.dataset.idx);
+    return true;
+  }
+
+  NS.duplicateCurrent = duplicateCurrent;
   NS.renderCal = renderCal;
+  NS.printDay = printDay;
+  NS.duplicate = duplicate;
+  NS.applyRange = applyRange;
   NS.renderRegister = renderRegister;
   NS.renderChips = renderChips;
   NS.refOpdList = refOpdList;
@@ -2185,6 +2446,23 @@ table.st td.z{color:var(--muted-2)}
         : '<div class="empty"><b>No patients this month</b>Open the register to start typing.</div>';
     }
 
+    /* follow-ups due */
+    var fw = $('#dFollow');
+    if (fw) {
+      var due = NS.dueFollowUps(14);
+      fw.innerHTML = due.length ? '<table class="minitable"><thead><tr><th>Due</th><th>Patient</th><th style="text-align:right">OPD</th></tr></thead><tbody>' +
+        due.slice(0, 8).map(function (f) {
+          var d = new Date(f.date + 'T00:00:00');
+          var lbl = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+          return '<tr class="clickable" data-goday="' + f.seen + '" data-goi="' + f.i + '"><td>' + esc(lbl) + '</td>' +
+            '<td style="max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(f.row.name || '—') +
+            (f.row.phone ? ' <span style="color:var(--muted-2)">· ' + esc(f.row.phone) + '</span>' : '') + '</td>' +
+            '<td class="n">' + esc(f.row.opd || '—') + '</td></tr>';
+        }).join('') + '</tbody></table>'
+        + (due.length > 8 ? '<div style="padding:8px 12px;font-size:11.5px;color:var(--muted)">+' + (due.length - 8) + ' more in the next two weeks</div>' : '')
+        : '<div class="empty"><b>Nothing due</b>Set a follow-up date on a patient to see it here.</div>';
+    }
+
     /* reading / insights */
     var ins = $('#dInsights');
     if (ins) {
@@ -2212,12 +2490,14 @@ table.st td.z{color:var(--muted-2)}
       var go = ev.target.closest('[data-goday]');
       if (!go) return;
       var k = go.dataset.goday;
+      var idx = go.dataset.goi;
       NS.S.curM = k.slice(0, 7);
       NS.S.curD = k;
       NS.S.open[k] = true;
       NS.syncMonthInputs();
       NS.switchView('register');
       NS.selectDay(k, true);
+      if (idx != null) setTimeout(function () { NS.openSheet(k, +idx); }, 300);
     });
     var b = $('#btnDashRegister');
     if (b) b.addEventListener('click', function () { NS.switchView('register'); });
@@ -2479,6 +2759,54 @@ table.st td.z{color:var(--muted-2)}
     NS.toast('Month exported as CSV.');
   }
 
+  /* One page a month for the file: totals, departments, sex, every day, and a signature line. */
+  function digest() {
+    var mk = NS.S.curM || NS.mKey(new Date());
+    var month = monthStats(mk);
+    var n = NS.dim(mk), days = [], worked = 0;
+    for (var d = 1; d <= n; d++) {
+      var k = mk + '-' + NS.pad(d), st = (NS.ent()[k] || {}).status || 'working';
+      var s1 = dayStats(k);
+      if (st === 'working' && s1.total > 0) worked++;
+      days.push({ d: d, k: k, s: s1, st: st, note: (NS.ent()[k] || {}).note || '' });
+    }
+    var deptRows = [['Medicine', month.med], ['Surgery', month.surg], ['Gynec & Obs', month.gyn], ['Pediatrics', month.ped], ['Other / unspecified', month.other]]
+      .filter(function (r) { return r[1] > 0; });
+    var pctOf = function (v) { return month.total ? Math.round(v / month.total * 100) + '%' : '–'; };
+
+    var h = '<div class="digest">' +
+      '<div class="dhead"><div><h2>' + esc(NS.db.current) + ' — OPD digest</h2>' +
+      '<small>' + esc(NS.fmtMonth(mk)) + ' · ' + worked + ' working days · generated ' + esc(new Date().toLocaleDateString()) + '</small></div>' +
+      '<div class="grow"></div><small>' + esc(NS.locNames().length + ' location' + (NS.locNames().length > 1 ? 's' : '')) + '</small></div>' +
+
+      '<div class="dk">' +
+      '<div><b>' + month.total + '</b><span>Total patients</span></div>' +
+      '<div><b>' + month.newC + '</b><span>New</span></div>' +
+      '<div><b>' + month.oldC + '</b><span>Follow-up</span></div>' +
+      '<div><b>' + month.male + ' / ' + month.female + '</b><span>Male / female</span></div>' +
+      '<div><b>' + month.avg + '</b><span>Average per day</span></div>' +
+      '</div>' +
+
+      '<div class="cols2">' +
+      '<div><table><thead><tr><th>Department</th><th>Patients</th><th>Share</th></tr></thead><tbody>' +
+      deptRows.map(function (r) { return '<tr><td>' + esc(r[0]) + '</td><td>' + r[1] + '</td><td>' + pctOf(r[1]) + '</td></tr>'; }).join('') +
+      '<tr class="total"><td>Total</td><td>' + month.total + '</td><td>100%</td></tr>' +
+      '</tbody></table></div>' +
+      '<div><table><thead><tr><th>Day</th><th>Status</th><th>Patients</th></tr></thead><tbody>' +
+      days.map(function (x) {
+        return '<tr><td>' + x.d + '</td><td style="text-align:left;color:#64748b">' + esc(NS.ST[x.st].s) + (x.note ? ' · ' + esc(x.note) : '') + '</td><td>' + (x.s.total || '–') + '</td></tr>';
+      }).join('') +
+      '</tbody></table></div></div>' +
+
+      '<div class="sign"><span>Signature: ____________________</span><span>' + esc(NS.db.current) + '</span><span>Prepared from the OPD register</span></div>' +
+      '</div>';
+
+    var out = $('#statOutput');
+    if (out) out.innerHTML = h;
+    document.body.classList.add('printing-stats');
+    setTimeout(function () { window.print(); setTimeout(function () { document.body.classList.remove('printing-stats'); }, 400); }, 60);
+  }
+
   function print() {
     if (!state.ran) run();
     document.body.classList.add('printing-stats');
@@ -2495,6 +2823,8 @@ table.st td.z{color:var(--muted-2)}
     });
     $('#btnRunStats').addEventListener('click', run);
     $('#btnStatPrint').addEventListener('click', print);
+    var dg = $('#btnDigest');
+    if (dg) dg.addEventListener('click', digest);
     $('#btnStatExcel').addEventListener('click', exportExcel);
     $('#btnStatCsv').addEventListener('click', exportCsv);
     $('#btnColAll').addEventListener('click', function () { $$('#colsBox input').forEach(function (el) { el.checked = true; }); render(); });
@@ -2849,6 +3179,29 @@ table.st td.z{color:var(--muted-2)}
     switchView('dash');
   }
 
+  /* ---------------- bulk day range ---------------- */
+  function bindRange() {
+    var btn = $('#btnRange'), panel = $('#rangePanel');
+    if (!btn || !panel) return;
+    btn.addEventListener('click', function () {
+      var open = panel.hidden;
+      panel.hidden = !open;
+      btn.setAttribute('aria-expanded', String(open));
+      if (open) {
+        if (!$('#rangeFrom').value) $('#rangeFrom').value = NS.S.curM + '-01';
+        if (!$('#rangeTo').value) $('#rangeTo').value = NS.S.curM + '-' + NS.pad(NS.dim(NS.S.curM));
+        $('#rangeFrom').focus();
+      }
+    });
+    $('#rangeCancel').addEventListener('click', function () {
+      panel.hidden = true; btn.setAttribute('aria-expanded', 'false');
+    });
+    $('#rangeApply').addEventListener('click', function () {
+      var n = NS.applyRange($('#rangeFrom').value, $('#rangeTo').value, $('#rangeStatus').value, $('#rangeNote').value.trim());
+      if (n) { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); $('#rangeNote').value = ''; }
+    });
+  }
+
   /* ---------------- shortcuts ---------------- */
   function typing(el) {
     if (!el) return false;
@@ -2861,6 +3214,9 @@ table.st td.z{color:var(--muted-2)}
       if (k === 'Escape') {
         if ($('#sheet').classList.contains('on')) { NS.closeSheet(); return; }
         if ($('#menu').classList.contains('on')) { closeMenu(); return; }
+      }
+      if ((ev.ctrlKey || ev.metaKey) && (k === 'd' || k === 'D')) {
+        ev.preventDefault(); NS.duplicateCurrent(); return;
       }
       if (ev.altKey && (k === 'ArrowLeft' || k === 'ArrowRight')) {
         ev.preventDefault(); shiftMonth(k === 'ArrowLeft' ? -1 : 1); return;
@@ -2898,6 +3254,7 @@ table.st td.z{color:var(--muted-2)}
     NS.bindStats();
     NS.bindSearch();
     bindMenu();
+    bindRange();
     bindKeys();
 
     $$('#railNav button, #tabbar button').forEach(function (b) {
@@ -2949,6 +3306,18 @@ table.st td.z{color:var(--muted-2)}
       var big = $('#qBig');
       if (big) big.focus();
     });
+
+    /* an import replaces everything — keep the old database in memory for one step */
+    NS.onImported = function (previous) {
+      NS.toast('Backup imported.', 'Undo', function () {
+        NS.db.locations = previous.locations;
+        NS.db.current = previous.current;
+        NS.saveNow();
+        afterLocationChange();
+        NS.renderRegisterAll();
+        NS.toast('Previous data restored.');
+      });
+    };
 
     /* recents for the register chips */
     NS.on('changed', function () { NS.renderChips(); updateStoreInfo(); });

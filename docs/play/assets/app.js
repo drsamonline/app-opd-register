@@ -211,6 +211,29 @@
     switchView('dash');
   }
 
+  /* ---------------- bulk day range ---------------- */
+  function bindRange() {
+    var btn = $('#btnRange'), panel = $('#rangePanel');
+    if (!btn || !panel) return;
+    btn.addEventListener('click', function () {
+      var open = panel.hidden;
+      panel.hidden = !open;
+      btn.setAttribute('aria-expanded', String(open));
+      if (open) {
+        if (!$('#rangeFrom').value) $('#rangeFrom').value = NS.S.curM + '-01';
+        if (!$('#rangeTo').value) $('#rangeTo').value = NS.S.curM + '-' + NS.pad(NS.dim(NS.S.curM));
+        $('#rangeFrom').focus();
+      }
+    });
+    $('#rangeCancel').addEventListener('click', function () {
+      panel.hidden = true; btn.setAttribute('aria-expanded', 'false');
+    });
+    $('#rangeApply').addEventListener('click', function () {
+      var n = NS.applyRange($('#rangeFrom').value, $('#rangeTo').value, $('#rangeStatus').value, $('#rangeNote').value.trim());
+      if (n) { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); $('#rangeNote').value = ''; }
+    });
+  }
+
   /* ---------------- shortcuts ---------------- */
   function typing(el) {
     if (!el) return false;
@@ -223,6 +246,9 @@
       if (k === 'Escape') {
         if ($('#sheet').classList.contains('on')) { NS.closeSheet(); return; }
         if ($('#menu').classList.contains('on')) { closeMenu(); return; }
+      }
+      if ((ev.ctrlKey || ev.metaKey) && (k === 'd' || k === 'D')) {
+        ev.preventDefault(); NS.duplicateCurrent(); return;
       }
       if (ev.altKey && (k === 'ArrowLeft' || k === 'ArrowRight')) {
         ev.preventDefault(); shiftMonth(k === 'ArrowLeft' ? -1 : 1); return;
@@ -260,6 +286,7 @@
     NS.bindStats();
     NS.bindSearch();
     bindMenu();
+    bindRange();
     bindKeys();
 
     $$('#railNav button, #tabbar button').forEach(function (b) {
@@ -311,6 +338,18 @@
       var big = $('#qBig');
       if (big) big.focus();
     });
+
+    /* an import replaces everything — keep the old database in memory for one step */
+    NS.onImported = function (previous) {
+      NS.toast('Backup imported.', 'Undo', function () {
+        NS.db.locations = previous.locations;
+        NS.db.current = previous.current;
+        NS.saveNow();
+        afterLocationChange();
+        NS.renderRegisterAll();
+        NS.toast('Previous data restored.');
+      });
+    };
 
     /* recents for the register chips */
     NS.on('changed', function () { NS.renderChips(); updateStoreInfo(); });

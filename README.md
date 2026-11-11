@@ -43,7 +43,7 @@ badge service, because an offline-first app should not need the internet to desc
 `docs/play/index.html` is the whole app. No build step, no install, no dependencies.
 
 ```
-node tests/self-tests.js     # 61 checks, no browser needed
+node tests/self-tests.js     # 77 checks, no browser needed
 python3 scripts/build.py     # the single-file build -> dist/opd-register.html
 python3 scripts/badges.py    # the README badges
 ```
@@ -55,16 +55,22 @@ nothing is written to your device.
 
 | View | What it does |
 |---|---|
-| **Dashboard** | Five KPIs (total, male, female, new, follow-up) with share-of-total; department bars; sex donut; a bar per day of the month; the last days with data (click to open); a short "reading" panel — busiest day, new-vs-follow-up, working days with no entry, female share, gyn share. |
+| **Dashboard** | Five KPIs (total, male, female, new, follow-up) with share-of-total; department bars; sex donut; a bar per day of the month; the last days with data (click to open); **follow-ups due in the next 14 days**, with the mobile number; a short "reading" panel — busiest day, new-vs-follow-up, working days with no entry, female share, gyn share. |
 | **Register** | The month calendar with day statuses and per-day counts; then one section per day: status dropdown, free-text note, patient count, add-row and clear-day. On a desktop a sticky, column-aligned grid; on a phone a card per patient and a full-screen editor. |
-| **Statistics** | Day-wise, month-wise or any date range, with 17 selectable columns (summary, departments, sex-within-department, activity). Print, Excel (.xls) and CSV. |
+| **Statistics** | Day-wise, month-wise or any date range, with 17 selectable columns (summary, departments, sex-within-department, activity). Print, Excel (.xls), CSV — and a **one-page digest** per month for the file, with a signature line. |
 | **Patients** | Ranked substring search over every month — name, OPD no., age, department, diagnosis, treatment, address — optionally across all locations. A hit opens that patient in the editor. |
 | **About & help** | Storage used, patient and month counts, locations, backup and restore, keyboard reference, the counting rules, privacy and licence. |
 
+Each patient row also carries a **mobile number** and a **follow-up date** — neither of them
+makes a row a patient, so a stray date can never inflate a total. Rows duplicate with
+**Ctrl+D** for the next member of the same family, `01/01/1990` typed into Age becomes 35
+years, the department field offers the departments this location actually uses, a **range of
+days** can be marked holiday in one go, and **one day** can be printed on its own.
+
 Smaller things that earn their place: automatic OPD autofill for returning patients, recent
-patient chips, undo on delete (row, patient, whole day), dark mode, a save indicator, a
-storage-full fallback that prunes empty days rather than losing the entry, install-as-app,
-and a single-file build for a USB stick.
+patient chips, undo on delete (row, patient, whole day) and on import, dark mode, a save
+indicator, a storage-full fallback that prunes empty days rather than losing the entry,
+install-as-app, and a single-file build for a USB stick.
 
 ## The counting rules, written down
 
@@ -83,7 +89,7 @@ help) and here:
 
 ## Keyboard
 
-`/` search · `N` new patient · `T` today · `D` dark mode · `1`–`5` sections ·
+`/` search · `N` new patient · `Ctrl`+`D` duplicate · `T` today · `D` dark mode · `1`–`5` sections ·
 `Alt`+`←`/`→` month · `Enter` next row (adds one on the last row) · `Ctrl`+`Enter` add row ·
 `↑`/`↓` move within a column · `Esc` close.
 
@@ -106,7 +112,7 @@ dist/opd-register.html   the single-file build (generated)
 scripts/build.py         inlines css + js into the single file
 scripts/badges.py        draws docs/assets/badge-*.svg
 scripts/icons.py         renders the PWA icon set from icon.svg
-tests/self-tests.js      61 checks over the real source, no browser
+tests/self-tests.js      77 checks over the real source, no browser
 ```
 
 The app is six classic scripts in one namespace, not ES modules — so it also runs from

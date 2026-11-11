@@ -247,6 +247,54 @@
     NS.toast('Month exported as CSV.');
   }
 
+  /* One page a month for the file: totals, departments, sex, every day, and a signature line. */
+  function digest() {
+    var mk = NS.S.curM || NS.mKey(new Date());
+    var month = monthStats(mk);
+    var n = NS.dim(mk), days = [], worked = 0;
+    for (var d = 1; d <= n; d++) {
+      var k = mk + '-' + NS.pad(d), st = (NS.ent()[k] || {}).status || 'working';
+      var s1 = dayStats(k);
+      if (st === 'working' && s1.total > 0) worked++;
+      days.push({ d: d, k: k, s: s1, st: st, note: (NS.ent()[k] || {}).note || '' });
+    }
+    var deptRows = [['Medicine', month.med], ['Surgery', month.surg], ['Gynec & Obs', month.gyn], ['Pediatrics', month.ped], ['Other / unspecified', month.other]]
+      .filter(function (r) { return r[1] > 0; });
+    var pctOf = function (v) { return month.total ? Math.round(v / month.total * 100) + '%' : '–'; };
+
+    var h = '<div class="digest">' +
+      '<div class="dhead"><div><h2>' + esc(NS.db.current) + ' — OPD digest</h2>' +
+      '<small>' + esc(NS.fmtMonth(mk)) + ' · ' + worked + ' working days · generated ' + esc(new Date().toLocaleDateString()) + '</small></div>' +
+      '<div class="grow"></div><small>' + esc(NS.locNames().length + ' location' + (NS.locNames().length > 1 ? 's' : '')) + '</small></div>' +
+
+      '<div class="dk">' +
+      '<div><b>' + month.total + '</b><span>Total patients</span></div>' +
+      '<div><b>' + month.newC + '</b><span>New</span></div>' +
+      '<div><b>' + month.oldC + '</b><span>Follow-up</span></div>' +
+      '<div><b>' + month.male + ' / ' + month.female + '</b><span>Male / female</span></div>' +
+      '<div><b>' + month.avg + '</b><span>Average per day</span></div>' +
+      '</div>' +
+
+      '<div class="cols2">' +
+      '<div><table><thead><tr><th>Department</th><th>Patients</th><th>Share</th></tr></thead><tbody>' +
+      deptRows.map(function (r) { return '<tr><td>' + esc(r[0]) + '</td><td>' + r[1] + '</td><td>' + pctOf(r[1]) + '</td></tr>'; }).join('') +
+      '<tr class="total"><td>Total</td><td>' + month.total + '</td><td>100%</td></tr>' +
+      '</tbody></table></div>' +
+      '<div><table><thead><tr><th>Day</th><th>Status</th><th>Patients</th></tr></thead><tbody>' +
+      days.map(function (x) {
+        return '<tr><td>' + x.d + '</td><td style="text-align:left;color:#64748b">' + esc(NS.ST[x.st].s) + (x.note ? ' · ' + esc(x.note) : '') + '</td><td>' + (x.s.total || '–') + '</td></tr>';
+      }).join('') +
+      '</tbody></table></div></div>' +
+
+      '<div class="sign"><span>Signature: ____________________</span><span>' + esc(NS.db.current) + '</span><span>Prepared from the OPD register</span></div>' +
+      '</div>';
+
+    var out = $('#statOutput');
+    if (out) out.innerHTML = h;
+    document.body.classList.add('printing-stats');
+    setTimeout(function () { window.print(); setTimeout(function () { document.body.classList.remove('printing-stats'); }, 400); }, 60);
+  }
+
   function print() {
     if (!state.ran) run();
     document.body.classList.add('printing-stats');
@@ -263,6 +311,8 @@
     });
     $('#btnRunStats').addEventListener('click', run);
     $('#btnStatPrint').addEventListener('click', print);
+    var dg = $('#btnDigest');
+    if (dg) dg.addEventListener('click', digest);
     $('#btnStatExcel').addEventListener('click', exportExcel);
     $('#btnStatCsv').addEventListener('click', exportCsv);
     $('#btnColAll').addEventListener('click', function () { $$('#colsBox input').forEach(function (el) { el.checked = true; }); render(); });

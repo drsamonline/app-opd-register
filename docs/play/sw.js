@@ -1,10 +1,12 @@
 /* OPD Register — offline cache. Bump VERSION when assets change. */
-var VERSION = 'opd-v3.0.0';
+var VERSION = 'opd-v3.1.0';
 var ASSETS = [
   './', './index.html', './manifest.webmanifest', './icon.svg',
   './assets/app.css',
   './assets/store.js', './assets/register.js', './assets/dashboard.js',
-  './assets/stats.js', './assets/search.js', './assets/app.js'
+  './assets/stats.js', './assets/search.js', './assets/app.js',
+  './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
+  './icons/icon-maskable-512.png'
 ];
 
 self.addEventListener('install', function (e) {
