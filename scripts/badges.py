@@ -20,7 +20,7 @@ VIOLET = "#5b4bd6"
 BADGES = [
     ("live",     "live",    "demo",        SLATE, BLUE),
     ("offline",  "offline", "no network",  SLATE, GREEN),
-    ("tests",    "tests",   "113 passing",  SLATE, GREEN),
+    ("tests",    "tests",   "124 passing",  SLATE, GREEN),
     ("deps",     "runtime deps", "0",      SLATE, GREEN),
     ("licence",  "licence", "PolyForm NC", SLATE, AMBER),
     ("size",     "single file", "~130 KB", SLATE, VIOLET),

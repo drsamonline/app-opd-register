@@ -33,6 +33,8 @@ location.
 **3.9.0** — year view · merge an import · "what changed" after an import · signature line on
 the printed week.
 
+**3.10.0** — import preview · undo an import · field-level merge · monthly target.
+
 ## Next (small, high value)
 
 | Item | Why | Cost |

@@ -796,6 +796,27 @@ tr.dragging td{opacity:.45}
   background:var(--panel);padding:0 3px;border-radius:3px;font-variant-numeric:tabular-nums;
 }
 
+/* a small modal for decisions that deserve more than a confirm box */
+.dialog{
+  position:fixed;z-index:120;left:50%;top:50%;transform:translate(-50%,-48%);
+  width:min(520px,calc(100vw - 28px));max-height:min(80dvh,640px);
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  box-shadow:0 30px 70px -30px rgba(9,15,25,.5);display:none;flex-direction:column;
+}
+.dialog.on{display:flex}
+.dialog .dh{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.dialog .dh h2{font-size:15px;font-weight:750;flex:1;letter-spacing:-.01em}
+.dialog .db{padding:14px 16px;overflow:auto;font-size:13px;color:var(--ink-2);line-height:1.55}
+.dialog .db table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px}
+.dialog .db th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted-2);padding:5px 6px;border-bottom:1px solid var(--line)}
+.dialog .db td{padding:5px 6px;border-bottom:1px solid var(--line-2)}
+.dialog .db td.n{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+.dialog .df{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--line);flex-wrap:wrap}
+.dialog .df .btn{min-height:38px}
+.dlgscrim{position:fixed;inset:0;background:rgba(9,15,25,.5);z-index:119;display:none}
+.dlgscrim.on{display:block}
+@media (max-width:560px){.dialog{top:auto;bottom:0;left:0;transform:none;width:100%;max-height:88dvh;border-radius:16px 16px 0 0}.dialog.on{display:flex}}
+
 /* the lock screen */
 .notice{
   display:flex;align-items:center;gap:12px;flex-wrap:wrap;max-width:1560px;margin:0 auto 12px;
@@ -1214,7 +1235,11 @@ tr.dragging td{opacity:.45}
                 <label for="setTarget">Daily patient target (0 = off)</label>
                 <input type="number" id="setTarget" min="0" max="200" step="1" placeholder="e.g. 30"/>
               </div>
-              <p style="font-size:12px;color:var(--muted)">The target draws a line on the dashboard trend and compares each day with it. Nothing is enforced.</p>
+              <div class="field">
+                <label for="setMonthTarget">Monthly patient target (0 = off)</label>
+                <input type="number" id="setMonthTarget" min="0" max="20000" step="10" placeholder="e.g. 600"/>
+              </div>
+              <p style="font-size:12px;color:var(--muted)">The daily target draws a line on the dashboard trend; the monthly one adds a "vs target" column to the year view. Nothing is enforced.</p>
             </div>
           </div>
         </section>
@@ -1373,6 +1398,17 @@ tr.dragging td{opacity:.45}
     <button class="btn ghost block" id="btnLockImport" type="button" style="min-height:36px;font-size:12.5px">I have a backup file — start from that</button>
     <input type="file" id="lockImportFile" accept=".json,application/json" hidden/>
   </form>
+</div>
+
+<div class="scrim" id="dlgScrim"></div>
+<div class="dialog" id="importDialog" role="dialog" aria-modal="true" aria-labelledby="dlgTitle" aria-hidden="true">
+  <div class="dh"><h2 id="dlgTitle">Import</h2><button class="btn icon ghost" id="dlgClose" aria-label="Close"><svg width="17" height="17"><use href="#i-close"/></svg></button></div>
+  <div class="db" id="dlgBody"></div>
+  <div class="df">
+    <button class="btn ghost" id="dlgCancel">Cancel</button>
+    <button class="btn" id="dlgReplace">Replace everything</button>
+    <button class="btn primary" id="dlgMerge">Merge</button>
+  </div>
 </div>
 
 <div class="slip" id="slip" aria-hidden="true"></div>
@@ -1845,7 +1881,7 @@ tr.dragging td{opacity:.45}
   /* ---------- state ---------- */
   var DB = null;
   var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {},
-            colOrder: 'default', colOrderByLoc: {}, lockIdle: 10, target: 0, lastImport: null,
+            colOrder: 'default', colOrderByLoc: {}, lockIdle: 10, target: 0, monthTarget: 0, lastImport: null,
             locked: false, lockedNow: false, lockChoice: '' };
   var events = {};
   var saveState = 'saved';
@@ -1896,6 +1932,7 @@ tr.dragging td{opacity:.45}
         if (typeof st.lockIdle === 'number') S.lockIdle = st.lockIdle;
         if (st.lastImport) S.lastImport = st.lastImport;
         if (typeof st.target === 'number') S.target = st.target;
+        if (typeof st.monthTarget === 'number') S.monthTarget = st.monthTarget;
         if (st.lockChoice === 'on' || st.lockChoice === 'off') S.lockChoice = st.lockChoice;
       }
     } catch (e) {}
@@ -1939,7 +1976,8 @@ tr.dragging td{opacity:.45}
     try {
       localStorage.setItem(KS, JSON.stringify({
         theme: S.theme, filter: S.filter, colOrder: S.colOrder, colOrderByLoc: S.colOrderByLoc,
-        lockIdle: S.lockIdle, target: S.target, lockChoice: S.lockChoice, lastImport: S.lastImport
+        lockIdle: S.lockIdle, target: S.target, monthTarget: S.monthTarget,
+        lockChoice: S.lockChoice, lastImport: S.lastImport
       }));
     } catch (e) {}
   }
@@ -2305,40 +2343,77 @@ tr.dragging td{opacity:.45}
      Replace is the default and the honest one for a restore. Merge is for the case that
      actually happens: two phones, one register. Same OPD number and name on the same day
      is treated as the same patient and is not duplicated. */
-  function mergeDB(target, incoming) {
-    var stats = { locationsAdded: 0, daysAdded: 0, daysMerged: 0, rowsAdded: 0, rowsSkipped: 0 };
-    var T = target.locations, I = incoming.locations || {};
+  function mergeDB(target, incoming, dry) {
+    var base = dry ? JSON.parse(JSON.stringify(target)) : target;
+    var stats = { locationsAdded: 0, daysAdded: 0, daysMerged: 0, rowsAdded: 0, rowsSkipped: 0, rowsToppedUp: 0 };
+    var T = base.locations, I = incoming.locations || {};
     Object.keys(I).forEach(function (ln) {
-      if (!T[ln]) { T[ln] = { entries: {} }; stats.locationsAdded++; }
-      if (!T[ln].entries) T[ln].entries = {};
-      var te = T[ln].entries, ie = I[ln].entries || {};
+      if (!T[ln]) { if (!dry) T[ln] = { entries: {} }; stats.locationsAdded++; }
+      var te = (T[ln] && T[ln].entries) || {};
+      if (!T[ln] && dry) te = {};
+      if (T[ln] && !T[ln].entries && !dry) T[ln].entries = {};
+      var ie = I[ln].entries || {};
       Object.keys(ie).forEach(function (k) {
         var src = ie[k] || {}, dst = te[k];
         if (!dst) {
-          te[k] = JSON.parse(JSON.stringify(src));
           stats.daysAdded++;
           stats.rowsAdded += (src.rows || []).filter(hasD).length;
+          if (!dry) te[k] = JSON.parse(JSON.stringify(src));
           return;
         }
         var changed = false;
-        if ((!dst.status || dst.status === 'working') && src.status && src.status !== 'working') { dst.status = src.status; changed = true; }
-        if (!String(dst.note || '').trim() && String(src.note || '').trim()) { dst.note = src.note; changed = true; }
-        if (!Array.isArray(dst.rows)) dst.rows = [];
+        if ((!dst.status || dst.status === 'working') && src.status && src.status !== 'nonworking' && src.status !== 'working') {
+          if (!dry) dst.status = src.status;
+          changed = true;
+        }
+        if (!String(dst.note || '').trim() && String(src.note || '').trim()) {
+          if (!dry) dst.note = src.note;
+          changed = true;
+        }
+        if (!Array.isArray(dst.rows)) { if (!dry) dst.rows = []; }
+        var rows = dst.rows || [];
         (src.rows || []).forEach(function (r) {
           if (!hasD(r)) return;
           var opd = String(r.opd || '').trim();
-          var dup = opd && dst.rows.some(function (x) {
+          var same = opd ? rows.filter(function (x) {
             return String(x.opd || '').trim() === opd && String(x.name || '') === String(r.name || '');
-          });
-          if (dup) { stats.rowsSkipped++; return; }
-          var slot = dst.rows.findIndex(function (x) { return !hasD(x); });
-          if (slot === -1) dst.rows.push(Object.assign({}, r));
-          else dst.rows[slot] = Object.assign({}, r);
+          })[0] : null;
+
+          if (same) {
+            /* the same patient on the same day: fill what is empty here, never overwrite */
+            var filled = 0;
+            DF_ALL.forEach(function (f) {
+              var mine = String(same[f] == null ? '' : same[f]).trim();
+              var theirs = String(r[f] == null ? '' : r[f]).trim();
+              if (!mine && theirs) { if (!dry) same[f] = r[f]; filled++; }
+            });
+            if (filled) { stats.rowsToppedUp++; changed = true; }
+            else stats.rowsSkipped++;
+            return;
+          }
+          var slot = rows.findIndex(function (x) { return !hasD(x); });
+          if (!dry) {
+            if (slot === -1) rows.push(Object.assign({}, r));
+            else rows[slot] = Object.assign({}, r);
+          } else if (slot !== -1) {
+            rows[slot] = r;           /* keep the dry run's own bookkeeping honest */
+          } else {
+            rows.push(r);
+          }
           stats.rowsAdded++; changed = true;
         });
         if (changed) stats.daysMerged++;
       });
     });
+    stats.summary = function () {
+      var bits = [];
+      if (stats.locationsAdded) bits.push(stats.locationsAdded + ' location(s) added');
+      if (stats.rowsAdded) bits.push(stats.rowsAdded + ' patient(s) added');
+      if (stats.rowsToppedUp) bits.push(stats.rowsToppedUp + ' topped up');
+      if (stats.rowsSkipped) bits.push(stats.rowsSkipped + ' already here');
+      if (stats.daysAdded) bits.push(stats.daysAdded + ' day(s) added');
+      return bits.length ? bits.join(', ') : 'nothing new';
+    };
     return stats;
   }
 
@@ -4113,6 +4188,14 @@ tr.dragging td{opacity:.45}
       rows.push({ mk: mk, s: s });
     }
     var maxM = Math.max(1, Math.max.apply(null, rows.map(function (r) { return r.s.total; })));
+    var mt = Number(NS.S.monthTarget) || 0;
+    var tHead = mt ? '<th>vs target</th>' : '';
+    var vsTarget = function (n) {
+      if (!mt) return '';
+      var pc = Math.round(n / mt * 100);
+      var col = pc >= 100 ? 'var(--ok)' : (pc >= 70 ? 'var(--warn)' : 'var(--muted-2)');
+      return '<td style="color:' + col + ';font-weight:700">' + (n ? pc + '%' : '–') + '</td>';
+    };
     var avg = months ? (tot.total / months) : 0;
 
     var h = '<div class="yearview">' +
@@ -4124,7 +4207,7 @@ tr.dragging td{opacity:.45}
       '<div class="kpi f"><div class="k">Busiest month</div><div class="v" style="font-size:16px">' + (busiest.m ? esc(NS.fmtMonth(busiest.m).split(' ')[0]) : '—') + '</div><div class="s">' + (busiest.n || 'nothing yet') + (busiest.n ? ' patients' : '') + '</div></div>' +
       '</div>' +
       '<table class="st"><caption>' + esc(NS.db.current) + ' — ' + yr + ', month by month<small>Generated ' + esc(new Date().toLocaleString()) + '</small></caption>' +
-      '<thead><tr><th>Month</th><th>Patients</th><th></th><th>New</th><th>Follow-up</th><th>Male</th><th>Female</th><th>Med</th><th>Surg</th><th>Gyn</th><th>Ped</th><th>Working days</th></tr></thead><tbody>';
+      '<thead><tr><th>Month</th><th>Patients</th><th></th><th>New</th><th>Follow-up</th><th>Male</th><th>Female</th><th>Med</th><th>Surg</th><th>Gyn</th><th>Ped</th><th>Working days</th>' + tHead + '</tr></thead><tbody>';
 
     rows.forEach(function (r) {
       var n = r.s.total;
@@ -4139,12 +4222,14 @@ tr.dragging td{opacity:.45}
         '<td class="' + (n ? '' : 'z') + '">' + (r.s.surg || '–') + '</td>' +
         '<td class="' + (n ? '' : 'z') + '">' + (r.s.gyn || '–') + '</td>' +
         '<td class="' + (n ? '' : 'z') + '">' + (r.s.ped || '–') + '</td>' +
-        '<td class="' + (n ? '' : 'z') + '">' + (r.s.worked || '–') + '</td></tr>';
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.worked || '–') + '</td>' + vsTarget(n) + '</tr>';
     });
 
     h += '</tbody><tfoot><tr class="total"><td>Total ' + yr + '</td><td>' + tot.total + '</td><td></td>' +
       '<td>' + tot.newC + '</td><td>' + tot.oldC + '</td><td>' + tot.male + '</td><td>' + tot.female + '</td>' +
-      '<td>' + tot.med + '</td><td>' + tot.surg + '</td><td>' + tot.gyn + '</td><td>' + tot.ped + '</td><td>' + tot.worked + '</td></tr></tfoot></table>' +
+      '<td>' + tot.med + '</td><td>' + tot.surg + '</td><td>' + tot.gyn + '</td><td>' + tot.ped + '</td><td>' + tot.worked + '</td>' +
+      (mt ? '<td style="color:var(--accent-d)">' + Math.round(tot.total / (mt * Math.max(1, months)) * 100) + '%</td>' : '') +
+      '</tr></tfoot></table>' +
       '<div class="sign" style="margin-top:14px;display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">' +
       '<span>Signature: ____________________</span><span>' + esc(NS.db.current) + '</span><span>Prepared from the OPD register</span></div>' +
       '</div>';
@@ -4705,6 +4790,12 @@ tr.dragging td{opacity:.45}
     document.addEventListener('keydown', function (ev) {
       var k = ev.key;
       if (k === 'Escape') {
+        if ($('#importDialog') && $('#importDialog').classList.contains('on')) {
+          $('#importDialog').classList.remove('on');
+          var sc = $('#dlgScrim'); if (sc) sc.classList.remove('on');
+          document.body.style.overflow = '';
+          return;
+        }
         if ($('#sheet').classList.contains('on')) { NS.closeSheet(); return; }
         if ($('#menu').classList.contains('on')) { closeMenu(); return; }
       }
@@ -5051,6 +5142,19 @@ tr.dragging td{opacity:.45}
         NS.toast('Column order saved for ' + NS.db.current + '.');
       });
     }
+    var mt = $('#setMonthTarget');
+    if (mt) {
+      mt.value = NS.S.monthTarget || '';
+      mt.addEventListener('change', function () {
+        var v = parseInt(mt.value, 10);
+        NS.S.monthTarget = isNaN(v) || v < 0 ? 0 : Math.min(20000, v);
+        mt.value = NS.S.monthTarget || '';
+        NS.settingsSave();
+        NS.toast(NS.S.monthTarget ? 'Monthly target: ' + NS.S.monthTarget + ' patients.' : 'Monthly target cleared.');
+        if (NS.statsState && NS.statsState.mode === 'year') NS.runStats();
+        NS.renderDashboard();
+      });
+    }
     if (st) {
       st.value = NS.S.target || '';
       st.addEventListener('change', function () {
@@ -5069,69 +5173,124 @@ tr.dragging td{opacity:.45}
       afterLocationChange();
       NS.renderRegisterAll();
       updateStoreInfo();
-      var line = $('#lastImport');
-      if (line) {
-        var li = NS.S.lastImport;
-        line.textContent = li ? ('Last import ' + li.when + ' · ' + li.mode + ' · ' + li.summary) : '';
-      }
+      var line = $('#lastImport'), li = NS.S.lastImport;
+      if (line) line.textContent = li ? ('Last import ' + li.when + ' · ' + li.mode + ' · ' + li.summary) : '';
       if (msg) NS.toast(msg);
     }
 
-    function importFile(file, mode) {
-      var r = new FileReader();
-      r.onload = function () {
-        var parsed;
-        try { parsed = JSON.parse(r.result); } catch (e) { NS.toast('That file is not valid JSON.'); return; }
-        if (parsed && parsed.kind === 'vault') { NS.toast('That is an encrypted backup — restore it from the lock screen.'); return; }
-        var incoming = NS.validDB(parsed);
-        var when = new Date().toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    /* ---------- a preview, so nobody merges blind ---------- */
+    var pending = null;
 
-        if (mode === 'merge') {
-          var stats = NS.mergeDB(NS.db, incoming);
-          NS.saveNow();
-          NS.S.lastImport = {
-            when: when, mode: 'merged',
-            summary: stats.locationsAdded + ' location(s) added, ' + stats.rowsAdded + ' patient(s) added, ' +
-              stats.rowsSkipped + ' already here, ' + stats.daysMerged + ' day(s) topped up'
-          };
-          NS.settingsSave();
-          afterImport('Merged: ' + stats.rowsAdded + ' patients added, ' + stats.rowsSkipped + ' already here.');
-          return;
-        }
+    function closeDialog() {
+      var d = $('#importDialog');
+      if (d) { d.classList.remove('on'); d.setAttribute('aria-hidden', 'true'); }
+      var sc = $('#dlgScrim'); if (sc) sc.classList.remove('on');
+      document.body.style.overflow = '';
+      pending = null;
+    }
+    function openDialog(incoming, fileName) {
+      var dry = NS.mergeDB(NS.db, incoming, true);
+      var here = 0;
+      NS.locNames().forEach(function (n) {
+        var E = NS.db.locations[n].entries || {};
+        Object.keys(E).forEach(function (k) { here += ((E[k] || {}).rows || []).filter(NS.hasD).length; });
+      });
+      var fileLocs = Object.keys(incoming.locations).length, fileRows = 0, fileMonths = {};
+      Object.keys(incoming.locations).forEach(function (n) {
+        var E = incoming.locations[n].entries || {};
+        Object.keys(E).forEach(function (k) {
+          fileMonths[k.slice(0, 7)] = 1;
+          fileRows += ((E[k] || {}).rows || []).filter(NS.hasD).length;
+        });
+      });
 
+      $('#dlgBody').innerHTML =
+        '<p style="color:var(--muted)">' + NS.esc(fileName) + ' holds <b>' + fileLocs + '</b> location(s), ' +
+        Object.keys(fileMonths).length + ' month(s) and <b>' + fileRows + '</b> patient(s).</p>' +
+        '<table><thead><tr><th>If you merge</th><th class="n">Count</th></tr></thead><tbody>' +
+        '<tr><td>Locations added</td><td class="n">' + dry.locationsAdded + '</td></tr>' +
+        '<tr><td>Days added</td><td class="n">' + dry.daysAdded + '</td></tr>' +
+        '<tr><td>Patients added</td><td class="n">' + dry.rowsAdded + '</td></tr>' +
+        '<tr><td>Existing patients topped up (empty fields only)</td><td class="n">' + dry.rowsToppedUp + '</td></tr>' +
+        '<tr><td>Already here, nothing to add</td><td class="n">' + dry.rowsSkipped + '</td></tr>' +
+        '</tbody></table>' +
+        '<p style="margin-top:10px;color:var(--muted)">Merging never deletes. Replacing throws away the ' + here +
+        ' patient(s) currently on this device.</p>';
+
+      pending = incoming;
+      var d = $('#importDialog');
+      d.classList.add('on'); d.setAttribute('aria-hidden', 'false');
+      var sc = $('#dlgScrim'); if (sc) sc.classList.add('on');
+      document.body.style.overflow = 'hidden';
+      $('#dlgMerge').focus();
+    }
+
+    function applyImport(mode) {
+      if (!pending) return;
+      var incoming = pending;
+      var before = JSON.parse(JSON.stringify(NS.db));
+      var when = new Date().toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      var summary = '';
+
+      if (mode === 'merge') {
+        var stats = NS.mergeDB(NS.db, incoming);
+        summary = stats.summary();
+      } else {
         NS.db.locations = incoming.locations;
         NS.db.current = incoming.current;
-        NS.saveNow();
         var total = 0;
         NS.locNames().forEach(function (n) {
           var E = NS.db.locations[n].entries || {};
           Object.keys(E).forEach(function (k) { total += ((E[k] || {}).rows || []).filter(NS.hasD).length; });
         });
-        NS.S.lastImport = {
-          when: when, mode: 'replaced',
-          summary: NS.locNames().length + ' location(s), ' + total + ' patient(s)'
-        };
-        NS.settingsSave();
-        afterImport('Replaced: ' + NS.locNames().length + ' location(s), ' + total + ' patients.');
+        summary = NS.locNames().length + ' location(s), ' + total + ' patient(s)';
+      }
+
+      NS.saveNow();
+      NS.S.lastImport = { when: when, mode: mode === 'merge' ? 'merged' : 'replaced', summary: summary };
+      NS.settingsSave();
+      closeDialog();
+      afterImport((mode === 'merge' ? 'Merged: ' : 'Replaced: ') + summary);
+
+      NS.toast((mode === 'merge' ? 'Merged' : 'Replaced') + ' — ' + summary + '.', 'Undo', function () {
+        NS.db.locations = before.locations;
+        NS.db.current = before.current;
+        NS.saveNow();
+        afterImport('Import undone.');
+      });
+    }
+
+    function importFile(file) {
+      var r = new FileReader();
+      r.onload = function () {
+        var parsed;
+        try { parsed = JSON.parse(r.result); } catch (e) { NS.toast('That file is not valid JSON.'); return; }
+        if (parsed && parsed.kind === 'vault') { NS.toast('That is an encrypted backup — restore it from the lock screen.'); return; }
+        openDialog(NS.validDB(parsed), file.name || 'this file');
       };
       r.readAsText(file);
     }
 
-    function wireImport(inputId, mode, question) {
+    function wireImport(inputId) {
       var el = $('#' + inputId);
       if (!el) return;
       el.addEventListener('change', function (ev) {
         var f = ev.target.files && ev.target.files[0];
         if (!f) return;
-        if (!confirm(question)) { ev.target.value = ''; return; }
-        importFile(f, mode);
+        importFile(f);
         ev.target.value = '';
       });
     }
-    wireImport('fileMerge', 'merge',
-      'Merge this file into the register?\n\nNothing already here is removed; patients with the same OPD number and name on the same day are skipped.');
-    wireImport('fileImport', 'replace',
-      'Replace everything with this file?\n\nEvery location and month currently stored will be thrown away.');
+    wireImport('fileMerge');
+    wireImport('fileImport');
+
+    if ($('#dlgMerge')) {
+      $('#dlgMerge').addEventListener('click', function () { applyImport('merge'); });
+      $('#dlgReplace').addEventListener('click', function () { applyImport('replace'); });
+      $('#dlgCancel').addEventListener('click', closeDialog);
+      $('#dlgClose').addEventListener('click', closeDialog);
+      $('#dlgScrim').addEventListener('click', closeDialog);
+    }
 
     var top = $('#qTop');
     if (top) top.addEventListener('input', function () {

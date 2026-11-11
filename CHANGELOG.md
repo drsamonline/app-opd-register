@@ -1,5 +1,30 @@
 # Changelog
 
+## 3.10.0 — 2026-11-12
+
+The import story closed: see it, choose it, undo it — and a target that survives the year.
+
+### Added
+- **A preview before importing.** Choosing a file no longer applies it. A dialog says what the
+  file holds and, for a merge, exactly how many locations, days and patients would be added,
+  how many existing patients would be topped up, and how many are already here. Then Merge,
+  Replace or Cancel.
+- **Undo an import** — one toast, both paths. Merge is additive, replace is not; both put the
+  previous register back.
+- **Field-level merge.** A patient already here used to be skipped wholesale. Now their empty
+  fields are filled from the incoming row — never the other way round, so a filled diagnosis
+  is never overwritten by a blank one.
+- **A monthly patient target**, alongside the daily one: the year view gains a *vs target*
+  column (green at 100%, amber from 70%).
+
+### Changed
+- `mergeDB` takes a dry-run flag, so the preview and the merge cannot drift apart: the preview
+  runs the real merge on a copy and reports what it did.
+
+### Tests
+- 124 node checks (was 113) and 156 browser checks (was 150): dry run leaves the register
+  untouched, top-up fills only empty fields, preview counts, cancel, merge, undo, replace.
+
 ## 3.9.0 — 2026-11-12
 
 The annual report, and an import that does not have to throw anything away.

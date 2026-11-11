@@ -266,6 +266,12 @@
     document.addEventListener('keydown', function (ev) {
       var k = ev.key;
       if (k === 'Escape') {
+        if ($('#importDialog') && $('#importDialog').classList.contains('on')) {
+          $('#importDialog').classList.remove('on');
+          var sc = $('#dlgScrim'); if (sc) sc.classList.remove('on');
+          document.body.style.overflow = '';
+          return;
+        }
         if ($('#sheet').classList.contains('on')) { NS.closeSheet(); return; }
         if ($('#menu').classList.contains('on')) { closeMenu(); return; }
       }
@@ -612,6 +618,19 @@
         NS.toast('Column order saved for ' + NS.db.current + '.');
       });
     }
+    var mt = $('#setMonthTarget');
+    if (mt) {
+      mt.value = NS.S.monthTarget || '';
+      mt.addEventListener('change', function () {
+        var v = parseInt(mt.value, 10);
+        NS.S.monthTarget = isNaN(v) || v < 0 ? 0 : Math.min(20000, v);
+        mt.value = NS.S.monthTarget || '';
+        NS.settingsSave();
+        NS.toast(NS.S.monthTarget ? 'Monthly target: ' + NS.S.monthTarget + ' patients.' : 'Monthly target cleared.');
+        if (NS.statsState && NS.statsState.mode === 'year') NS.runStats();
+        NS.renderDashboard();
+      });
+    }
     if (st) {
       st.value = NS.S.target || '';
       st.addEventListener('change', function () {
@@ -630,69 +649,124 @@
       afterLocationChange();
       NS.renderRegisterAll();
       updateStoreInfo();
-      var line = $('#lastImport');
-      if (line) {
-        var li = NS.S.lastImport;
-        line.textContent = li ? ('Last import ' + li.when + ' · ' + li.mode + ' · ' + li.summary) : '';
-      }
+      var line = $('#lastImport'), li = NS.S.lastImport;
+      if (line) line.textContent = li ? ('Last import ' + li.when + ' · ' + li.mode + ' · ' + li.summary) : '';
       if (msg) NS.toast(msg);
     }
 
-    function importFile(file, mode) {
-      var r = new FileReader();
-      r.onload = function () {
-        var parsed;
-        try { parsed = JSON.parse(r.result); } catch (e) { NS.toast('That file is not valid JSON.'); return; }
-        if (parsed && parsed.kind === 'vault') { NS.toast('That is an encrypted backup — restore it from the lock screen.'); return; }
-        var incoming = NS.validDB(parsed);
-        var when = new Date().toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    /* ---------- a preview, so nobody merges blind ---------- */
+    var pending = null;
 
-        if (mode === 'merge') {
-          var stats = NS.mergeDB(NS.db, incoming);
-          NS.saveNow();
-          NS.S.lastImport = {
-            when: when, mode: 'merged',
-            summary: stats.locationsAdded + ' location(s) added, ' + stats.rowsAdded + ' patient(s) added, ' +
-              stats.rowsSkipped + ' already here, ' + stats.daysMerged + ' day(s) topped up'
-          };
-          NS.settingsSave();
-          afterImport('Merged: ' + stats.rowsAdded + ' patients added, ' + stats.rowsSkipped + ' already here.');
-          return;
-        }
+    function closeDialog() {
+      var d = $('#importDialog');
+      if (d) { d.classList.remove('on'); d.setAttribute('aria-hidden', 'true'); }
+      var sc = $('#dlgScrim'); if (sc) sc.classList.remove('on');
+      document.body.style.overflow = '';
+      pending = null;
+    }
+    function openDialog(incoming, fileName) {
+      var dry = NS.mergeDB(NS.db, incoming, true);
+      var here = 0;
+      NS.locNames().forEach(function (n) {
+        var E = NS.db.locations[n].entries || {};
+        Object.keys(E).forEach(function (k) { here += ((E[k] || {}).rows || []).filter(NS.hasD).length; });
+      });
+      var fileLocs = Object.keys(incoming.locations).length, fileRows = 0, fileMonths = {};
+      Object.keys(incoming.locations).forEach(function (n) {
+        var E = incoming.locations[n].entries || {};
+        Object.keys(E).forEach(function (k) {
+          fileMonths[k.slice(0, 7)] = 1;
+          fileRows += ((E[k] || {}).rows || []).filter(NS.hasD).length;
+        });
+      });
 
+      $('#dlgBody').innerHTML =
+        '<p style="color:var(--muted)">' + NS.esc(fileName) + ' holds <b>' + fileLocs + '</b> location(s), ' +
+        Object.keys(fileMonths).length + ' month(s) and <b>' + fileRows + '</b> patient(s).</p>' +
+        '<table><thead><tr><th>If you merge</th><th class="n">Count</th></tr></thead><tbody>' +
+        '<tr><td>Locations added</td><td class="n">' + dry.locationsAdded + '</td></tr>' +
+        '<tr><td>Days added</td><td class="n">' + dry.daysAdded + '</td></tr>' +
+        '<tr><td>Patients added</td><td class="n">' + dry.rowsAdded + '</td></tr>' +
+        '<tr><td>Existing patients topped up (empty fields only)</td><td class="n">' + dry.rowsToppedUp + '</td></tr>' +
+        '<tr><td>Already here, nothing to add</td><td class="n">' + dry.rowsSkipped + '</td></tr>' +
+        '</tbody></table>' +
+        '<p style="margin-top:10px;color:var(--muted)">Merging never deletes. Replacing throws away the ' + here +
+        ' patient(s) currently on this device.</p>';
+
+      pending = incoming;
+      var d = $('#importDialog');
+      d.classList.add('on'); d.setAttribute('aria-hidden', 'false');
+      var sc = $('#dlgScrim'); if (sc) sc.classList.add('on');
+      document.body.style.overflow = 'hidden';
+      $('#dlgMerge').focus();
+    }
+
+    function applyImport(mode) {
+      if (!pending) return;
+      var incoming = pending;
+      var before = JSON.parse(JSON.stringify(NS.db));
+      var when = new Date().toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      var summary = '';
+
+      if (mode === 'merge') {
+        var stats = NS.mergeDB(NS.db, incoming);
+        summary = stats.summary();
+      } else {
         NS.db.locations = incoming.locations;
         NS.db.current = incoming.current;
-        NS.saveNow();
         var total = 0;
         NS.locNames().forEach(function (n) {
           var E = NS.db.locations[n].entries || {};
           Object.keys(E).forEach(function (k) { total += ((E[k] || {}).rows || []).filter(NS.hasD).length; });
         });
-        NS.S.lastImport = {
-          when: when, mode: 'replaced',
-          summary: NS.locNames().length + ' location(s), ' + total + ' patient(s)'
-        };
-        NS.settingsSave();
-        afterImport('Replaced: ' + NS.locNames().length + ' location(s), ' + total + ' patients.');
+        summary = NS.locNames().length + ' location(s), ' + total + ' patient(s)';
+      }
+
+      NS.saveNow();
+      NS.S.lastImport = { when: when, mode: mode === 'merge' ? 'merged' : 'replaced', summary: summary };
+      NS.settingsSave();
+      closeDialog();
+      afterImport((mode === 'merge' ? 'Merged: ' : 'Replaced: ') + summary);
+
+      NS.toast((mode === 'merge' ? 'Merged' : 'Replaced') + ' — ' + summary + '.', 'Undo', function () {
+        NS.db.locations = before.locations;
+        NS.db.current = before.current;
+        NS.saveNow();
+        afterImport('Import undone.');
+      });
+    }
+
+    function importFile(file) {
+      var r = new FileReader();
+      r.onload = function () {
+        var parsed;
+        try { parsed = JSON.parse(r.result); } catch (e) { NS.toast('That file is not valid JSON.'); return; }
+        if (parsed && parsed.kind === 'vault') { NS.toast('That is an encrypted backup — restore it from the lock screen.'); return; }
+        openDialog(NS.validDB(parsed), file.name || 'this file');
       };
       r.readAsText(file);
     }
 
-    function wireImport(inputId, mode, question) {
+    function wireImport(inputId) {
       var el = $('#' + inputId);
       if (!el) return;
       el.addEventListener('change', function (ev) {
         var f = ev.target.files && ev.target.files[0];
         if (!f) return;
-        if (!confirm(question)) { ev.target.value = ''; return; }
-        importFile(f, mode);
+        importFile(f);
         ev.target.value = '';
       });
     }
-    wireImport('fileMerge', 'merge',
-      'Merge this file into the register?\n\nNothing already here is removed; patients with the same OPD number and name on the same day are skipped.');
-    wireImport('fileImport', 'replace',
-      'Replace everything with this file?\n\nEvery location and month currently stored will be thrown away.');
+    wireImport('fileMerge');
+    wireImport('fileImport');
+
+    if ($('#dlgMerge')) {
+      $('#dlgMerge').addEventListener('click', function () { applyImport('merge'); });
+      $('#dlgReplace').addEventListener('click', function () { applyImport('replace'); });
+      $('#dlgCancel').addEventListener('click', closeDialog);
+      $('#dlgClose').addEventListener('click', closeDialog);
+      $('#dlgScrim').addEventListener('click', closeDialog);
+    }
 
     var top = $('#qTop');
     if (top) top.addEventListener('input', function () {

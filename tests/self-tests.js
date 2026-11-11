@@ -279,6 +279,34 @@ eq('merge: the existing row is untouched', host.locations.A.entries['2026-04-01'
 eq('merge: an empty note and status are topped up', [host.locations.A.entries['2026-04-01'].note, host.locations.A.entries['2026-04-01'].status], ['Camp', 'holiday']);
 eq('merge: the imported location arrives empty', Object.keys(host.locations.B.entries).length, 0);
 
+/* ---------- a dry run must not change anything ---------- */
+const dryTarget = NS.validDB({ current: 'A', locations: { A: { entries: {
+  '2026-07-01': { status: 'working', note: '', rows: [
+    { opd: '10', caseType: 'New', department: 'Medicine', name: 'Partial', age: '', sex: '', address: '', diagnosis: 'Fever', treatment: '' }
+  ] }
+} } } });
+const dryIncoming = NS.validDB({ current: 'A', locations: { A: { entries: {
+  '2026-07-01': { status: 'holiday', note: 'Camp', rows: [
+    { opd: '10', caseType: 'New', department: 'Medicine', name: 'Partial', age: '44', sex: 'M', address: '', diagnosis: 'Other', treatment: 'Rest' },
+    { opd: '11', caseType: 'New', department: 'Surgery', name: 'Fresh', age: '20', sex: 'F', address: '', diagnosis: '', treatment: '' }
+  ] }
+} } } });
+const dry = NS.mergeDB(dryTarget, dryIncoming, true);
+eq('dry run: counts the new patient', dry.rowsAdded, 1);
+eq('dry run: counts the top-up', dry.rowsToppedUp, 1);
+eq('dry run: leaves the target untouched', dryTarget.locations.A.entries['2026-07-01'].rows[0].age, '');
+eq('dry run: leaves the note untouched', dryTarget.locations.A.entries['2026-07-01'].note, '');
+
+/* ---------- a real merge tops up empty fields only ---------- */
+const wet = NS.mergeDB(dryTarget, dryIncoming);
+eq('merge: the empty age is filled', dryTarget.locations.A.entries['2026-07-01'].rows.filter(r => r.opd === '10')[0].age, '44');
+eq('merge: a filled diagnosis is not overwritten', dryTarget.locations.A.entries['2026-07-01'].rows.filter(r => r.opd === '10')[0].diagnosis, 'Fever');
+eq('merge: the empty treatment is filled', dryTarget.locations.A.entries['2026-07-01'].rows.filter(r => r.opd === '10')[0].treatment, 'Rest');
+eq('merge: the note is taken', dryTarget.locations.A.entries['2026-07-01'].note, 'Camp');
+eq('merge: the holiday status is taken', dryTarget.locations.A.entries['2026-07-01'].status, 'holiday');
+eq('merge: the new patient is added', dryTarget.locations.A.entries['2026-07-01'].rows.filter(r => r.opd === '11').length, 1);
+ok('merge: a summary line is produced', /added/.test(wet.summary()), wet.summary());
+
 /* ---------- lock handover ---------- */
 const keep = JSON.parse(JSON.stringify(NS.db));
 const keepLocs = NS.locNames().length, keepLoc = NS.db.current;

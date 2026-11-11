@@ -375,7 +375,11 @@
                 <label for="setTarget">Daily patient target (0 = off)</label>
                 <input type="number" id="setTarget" min="0" max="200" step="1" placeholder="e.g. 30"/>
               </div>
-              <p style="font-size:12px;color:var(--muted)">The target draws a line on the dashboard trend and compares each day with it. Nothing is enforced.</p>
+              <div class="field">
+                <label for="setMonthTarget">Monthly patient target (0 = off)</label>
+                <input type="number" id="setMonthTarget" min="0" max="20000" step="10" placeholder="e.g. 600"/>
+              </div>
+              <p style="font-size:12px;color:var(--muted)">The daily target draws a line on the dashboard trend; the monthly one adds a "vs target" column to the year view. Nothing is enforced.</p>
             </div>
           </div>
         </section>
@@ -534,6 +538,17 @@
     <button class="btn ghost block" id="btnLockImport" type="button" style="min-height:36px;font-size:12.5px">I have a backup file — start from that</button>
     <input type="file" id="lockImportFile" accept=".json,application/json" hidden/>
   </form>
+</div>
+
+<div class="scrim" id="dlgScrim"></div>
+<div class="dialog" id="importDialog" role="dialog" aria-modal="true" aria-labelledby="dlgTitle" aria-hidden="true">
+  <div class="dh"><h2 id="dlgTitle">Import</h2><button class="btn icon ghost" id="dlgClose" aria-label="Close"><svg width="17" height="17"><use href="#i-close"/></svg></button></div>
+  <div class="db" id="dlgBody"></div>
+  <div class="df">
+    <button class="btn ghost" id="dlgCancel">Cancel</button>
+    <button class="btn" id="dlgReplace">Replace everything</button>
+    <button class="btn primary" id="dlgMerge">Merge</button>
+  </div>
 </div>
 
 <div class="slip" id="slip" aria-hidden="true"></div>

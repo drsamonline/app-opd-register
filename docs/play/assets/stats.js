@@ -276,6 +276,14 @@
       rows.push({ mk: mk, s: s });
     }
     var maxM = Math.max(1, Math.max.apply(null, rows.map(function (r) { return r.s.total; })));
+    var mt = Number(NS.S.monthTarget) || 0;
+    var tHead = mt ? '<th>vs target</th>' : '';
+    var vsTarget = function (n) {
+      if (!mt) return '';
+      var pc = Math.round(n / mt * 100);
+      var col = pc >= 100 ? 'var(--ok)' : (pc >= 70 ? 'var(--warn)' : 'var(--muted-2)');
+      return '<td style="color:' + col + ';font-weight:700">' + (n ? pc + '%' : '–') + '</td>';
+    };
     var avg = months ? (tot.total / months) : 0;
 
     var h = '<div class="yearview">' +
@@ -287,7 +295,7 @@
       '<div class="kpi f"><div class="k">Busiest month</div><div class="v" style="font-size:16px">' + (busiest.m ? esc(NS.fmtMonth(busiest.m).split(' ')[0]) : '—') + '</div><div class="s">' + (busiest.n || 'nothing yet') + (busiest.n ? ' patients' : '') + '</div></div>' +
       '</div>' +
       '<table class="st"><caption>' + esc(NS.db.current) + ' — ' + yr + ', month by month<small>Generated ' + esc(new Date().toLocaleString()) + '</small></caption>' +
-      '<thead><tr><th>Month</th><th>Patients</th><th></th><th>New</th><th>Follow-up</th><th>Male</th><th>Female</th><th>Med</th><th>Surg</th><th>Gyn</th><th>Ped</th><th>Working days</th></tr></thead><tbody>';
+      '<thead><tr><th>Month</th><th>Patients</th><th></th><th>New</th><th>Follow-up</th><th>Male</th><th>Female</th><th>Med</th><th>Surg</th><th>Gyn</th><th>Ped</th><th>Working days</th>' + tHead + '</tr></thead><tbody>';
 
     rows.forEach(function (r) {
       var n = r.s.total;
@@ -302,12 +310,14 @@
         '<td class="' + (n ? '' : 'z') + '">' + (r.s.surg || '–') + '</td>' +
         '<td class="' + (n ? '' : 'z') + '">' + (r.s.gyn || '–') + '</td>' +
         '<td class="' + (n ? '' : 'z') + '">' + (r.s.ped || '–') + '</td>' +
-        '<td class="' + (n ? '' : 'z') + '">' + (r.s.worked || '–') + '</td></tr>';
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.worked || '–') + '</td>' + vsTarget(n) + '</tr>';
     });
 
     h += '</tbody><tfoot><tr class="total"><td>Total ' + yr + '</td><td>' + tot.total + '</td><td></td>' +
       '<td>' + tot.newC + '</td><td>' + tot.oldC + '</td><td>' + tot.male + '</td><td>' + tot.female + '</td>' +
-      '<td>' + tot.med + '</td><td>' + tot.surg + '</td><td>' + tot.gyn + '</td><td>' + tot.ped + '</td><td>' + tot.worked + '</td></tr></tfoot></table>' +
+      '<td>' + tot.med + '</td><td>' + tot.surg + '</td><td>' + tot.gyn + '</td><td>' + tot.ped + '</td><td>' + tot.worked + '</td>' +
+      (mt ? '<td style="color:var(--accent-d)">' + Math.round(tot.total / (mt * Math.max(1, months)) * 100) + '%</td>' : '') +
+      '</tr></tfoot></table>' +
       '<div class="sign" style="margin-top:14px;display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">' +
       '<span>Signature: ____________________</span><span>' + esc(NS.db.current) + '</span><span>Prepared from the OPD register</span></div>' +
       '</div>';
