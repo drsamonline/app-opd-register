@@ -567,6 +567,15 @@ table.reg td input[type="date"]::-webkit-calendar-picker-indicator{opacity:.45;c
 .digest .sign{margin-top:18px;display:flex;justify-content:space-between;font-size:11px;color:#64748b;border-top:1px solid #dbe3ee;padding-top:8px}
 @media print{.digest .dk div,.digest th,.digest tr.total td{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
 
+/* the year view */
+.ybar{display:block;height:8px;border-radius:4px;background:var(--accent);min-width:0}
+.yearview .st td:nth-child(3){padding-right:2px}
+.wfoot{
+  display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding:9px 12px;border-top:1px solid var(--line-2);font-size:11px;color:var(--muted);
+}
+@media print{ .wfoot{border-top:1px solid #999;color:#444} .yearview .ybar{print-color-adjust:exact;-webkit-print-color-adjust:exact} }
+
 /* ---------------- stats ---------------- */
 .segmented{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel-2)}
 .segmented button{
@@ -1079,6 +1088,7 @@ tr.dragging td{opacity:.45}
               <button data-mode="day" aria-pressed="true">Day-wise</button>
               <button data-mode="month" aria-pressed="false">Month-wise</button>
               <button data-mode="range" aria-pressed="false">Date range</button>
+              <button data-mode="year" aria-pressed="false">Year</button>
             </div>
             <div class="field" id="fldMonth"><label for="statMonth">Month</label><input type="month" id="statMonth"/></div>
             <div class="field" id="fldYear" hidden><label for="statYear">Year</label><input type="number" id="statYear" min="2000" max="2100"/></div>
@@ -1087,6 +1097,7 @@ tr.dragging td{opacity:.45}
             <button class="btn primary" id="btnRunStats">Run</button>
           </div>
 
+          <div id="colsBlock">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 6px">
             <h3 style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted-2)">Columns</h3>
             <div class="grow" style="flex:1"></div>
@@ -1094,6 +1105,7 @@ tr.dragging td{opacity:.45}
             <button class="btn sm ghost" id="btnColNone">None</button>
           </div>
           <div class="cols" id="colsBox"></div>
+          </div>
         </div>
       </section>
 
@@ -1162,10 +1174,12 @@ tr.dragging td{opacity:.45}
               <dl class="kv" id="storeInfo"></dl>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
                 <button class="btn" id="btnExportJson"><svg width="14" height="14"><use href="#i-down"/></svg>Export backup</button>
-                <label class="btn"><svg width="14" height="14"><use href="#i-up"/></svg>Import backup<input type="file" id="fileImport" accept=".json,application/json" hidden/></label>
+                <label class="btn"><svg width="14" height="14"><use href="#i-up"/></svg>Merge a backup<input type="file" id="fileMerge" accept=".json,application/json" hidden/></label>
+                <label class="btn"><svg width="14" height="14"><use href="#i-up"/></svg>Replace with a backup<input type="file" id="fileImport" accept=".json,application/json" hidden/></label>
                 <button class="btn" id="btnExportCsvAll">Export CSV</button>
               </div>
-              <p style="font-size:12px;color:var(--muted)">A backup file holds every location and every month. Export one weekly and keep it in cloud storage.</p>
+              <p style="font-size:12px;color:var(--muted)">A backup file holds every location and every month. <b>Merge</b> adds what is missing and keeps what is here; <b>Replace</b> throws the current register away and puts the file in its place.</p>
+              <p style="font-size:12px;color:var(--muted)" id="lastImport"></p>
             </div>
           </div>
         </section>
@@ -1831,7 +1845,7 @@ tr.dragging td{opacity:.45}
   /* ---------- state ---------- */
   var DB = null;
   var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {},
-            colOrder: 'default', colOrderByLoc: {}, lockIdle: 10, target: 0,
+            colOrder: 'default', colOrderByLoc: {}, lockIdle: 10, target: 0, lastImport: null,
             locked: false, lockedNow: false, lockChoice: '' };
   var events = {};
   var saveState = 'saved';
@@ -1880,6 +1894,7 @@ tr.dragging td{opacity:.45}
         if (st.colOrder) S.colOrder = st.colOrder;
         if (st.colOrderByLoc && typeof st.colOrderByLoc === 'object') S.colOrderByLoc = st.colOrderByLoc;
         if (typeof st.lockIdle === 'number') S.lockIdle = st.lockIdle;
+        if (st.lastImport) S.lastImport = st.lastImport;
         if (typeof st.target === 'number') S.target = st.target;
         if (st.lockChoice === 'on' || st.lockChoice === 'off') S.lockChoice = st.lockChoice;
       }
@@ -1924,7 +1939,7 @@ tr.dragging td{opacity:.45}
     try {
       localStorage.setItem(KS, JSON.stringify({
         theme: S.theme, filter: S.filter, colOrder: S.colOrder, colOrderByLoc: S.colOrderByLoc,
-        lockIdle: S.lockIdle, target: S.target, lockChoice: S.lockChoice
+        lockIdle: S.lockIdle, target: S.target, lockChoice: S.lockChoice, lastImport: S.lastImport
       }));
     } catch (e) {}
   }
@@ -2286,6 +2301,47 @@ tr.dragging td{opacity:.45}
     r.readAsText(file);
   }
 
+  /* ---------- merging an imported file into what is here ----------
+     Replace is the default and the honest one for a restore. Merge is for the case that
+     actually happens: two phones, one register. Same OPD number and name on the same day
+     is treated as the same patient and is not duplicated. */
+  function mergeDB(target, incoming) {
+    var stats = { locationsAdded: 0, daysAdded: 0, daysMerged: 0, rowsAdded: 0, rowsSkipped: 0 };
+    var T = target.locations, I = incoming.locations || {};
+    Object.keys(I).forEach(function (ln) {
+      if (!T[ln]) { T[ln] = { entries: {} }; stats.locationsAdded++; }
+      if (!T[ln].entries) T[ln].entries = {};
+      var te = T[ln].entries, ie = I[ln].entries || {};
+      Object.keys(ie).forEach(function (k) {
+        var src = ie[k] || {}, dst = te[k];
+        if (!dst) {
+          te[k] = JSON.parse(JSON.stringify(src));
+          stats.daysAdded++;
+          stats.rowsAdded += (src.rows || []).filter(hasD).length;
+          return;
+        }
+        var changed = false;
+        if ((!dst.status || dst.status === 'working') && src.status && src.status !== 'working') { dst.status = src.status; changed = true; }
+        if (!String(dst.note || '').trim() && String(src.note || '').trim()) { dst.note = src.note; changed = true; }
+        if (!Array.isArray(dst.rows)) dst.rows = [];
+        (src.rows || []).forEach(function (r) {
+          if (!hasD(r)) return;
+          var opd = String(r.opd || '').trim();
+          var dup = opd && dst.rows.some(function (x) {
+            return String(x.opd || '').trim() === opd && String(x.name || '') === String(r.name || '');
+          });
+          if (dup) { stats.rowsSkipped++; return; }
+          var slot = dst.rows.findIndex(function (x) { return !hasD(x); });
+          if (slot === -1) dst.rows.push(Object.assign({}, r));
+          else dst.rows[slot] = Object.assign({}, r);
+          stats.rowsAdded++; changed = true;
+        });
+        if (changed) stats.daysMerged++;
+      });
+    });
+    return stats;
+  }
+
   /* ---------- demo data (memory-safe: caller decides) ---------- */
   function demoDB() {
     var names = ['Ramesh Patel','Fatima Shaikh','Arjun Desai','Meena Joshi','Kiran Rao','Suresh Nair','Anita Shah','Vikram Singh','Priya Menon','Imran Qureshi','Lata Kulkarni','Devang Bhatt','Sneha Pillai','Mohan Yadav','Rekha Iyer','Aditya Verma'];
@@ -2373,7 +2429,7 @@ tr.dragging td{opacity:.45}
   NS.daySnapshot = daySnapshot; NS.restoreDay = restoreDay;
   NS.switchLoc = switchLoc; NS.addLoc = addLoc; NS.renameLoc = renameLoc; NS.delLoc = delLoc;
   NS.download = download; NS.exportJson = exportJson; NS.importJson = importJson; NS.demoDB = demoDB;
-  NS.validDB = validDB; NS.setDemo = setDemo; NS.isDemo = isDemo;
+  NS.validDB = validDB; NS.mergeDB = mergeDB; NS.setDemo = setDemo; NS.isDemo = isDemo;
 })(window.OPD = window.OPD || {});
 
 </script>
@@ -2689,7 +2745,10 @@ tr.dragging td{opacity:.45}
       '<span><b class="num">' + avg + '</b> per active day</span>' +
       (busiest.k ? '<span>busiest <b>' + esc(NS.fmtDay(busiest.k)) + '</b> · <span class="num">' + busiest.n + '</span></span>' : '') +
       '</div>' +
-      '<div class="weekgrid">' + cols + '</div>';
+      '<div class="weekgrid">' + cols + '</div>' +
+      '<div class="wfoot"><span>Signature: ____________________</span>' +
+      '<span>' + esc(NS.db.current) + ' · ' + esc(NS.fmtMonth(S.curM)) + '</span>' +
+      '<span>Prepared from the OPD register</span></div>';
   }
 
   function renderRegister() {
@@ -3911,9 +3970,11 @@ tr.dragging td{opacity:.45}
     state.mode = m;
     $$('#statMode button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.mode === m)); });
     $('#fldMonth').hidden = m !== 'day';
-    $('#fldYear').hidden = m !== 'month';
+    $('#fldYear').hidden = (m !== 'month' && m !== 'year');
     $('#fldFrom').hidden = m !== 'range';
     $('#fldTo').hidden = m !== 'range';
+    var cb = $('#colsBlock');
+    if (cb) cb.hidden = (m === 'year');   /* the year view has its own columns */
   }
 
   function totals(rows, cols) {
@@ -3961,6 +4022,12 @@ tr.dragging td{opacity:.45}
   }
 
   function run() {
+    if (state.mode === 'year') {
+      var y = $('#statYear');
+      if (!y.value) y.value = new Date().getFullYear();
+      yearView();
+      return;
+    }
     if (build() === null) return;
     state.ran = true;
     render();
@@ -4031,6 +4098,61 @@ tr.dragging td{opacity:.45}
         return '<tr><td>' + x.d + '</td><td style="text-align:left;color:#64748b">' + esc(NS.ST[x.st].s) +
           (x.note ? ' · ' + esc(x.note) : '') + '</td><td>' + (x.s.total || '–') + '</td></tr>';
       }).join('') + '</tbody></table></div>';
+  }
+
+  /* The year on one screen: twelve months, a bar each, and the annual totals. */
+  function yearView() {
+    var yr = parseInt($('#statYear').value, 10) || new Date().getFullYear();
+    var rows = [], tot = blank(), busiest = { m: null, n: 0 }, months = 0;
+    for (var m = 1; m <= 12; m++) {
+      var mk = yr + '-' + NS.pad(m);
+      var s = monthStats(mk);
+      if (s.total > 0) months++;
+      if (s.total > busiest.n) busiest = { m: mk, n: s.total };
+      ['total', 'male', 'female', 'newC', 'oldC', 'med', 'surg', 'gyn', 'ped', 'worked'].forEach(function (k) { tot[k] += s[k] || 0; });
+      rows.push({ mk: mk, s: s });
+    }
+    var maxM = Math.max(1, Math.max.apply(null, rows.map(function (r) { return r.s.total; })));
+    var avg = months ? (tot.total / months) : 0;
+
+    var h = '<div class="yearview">' +
+      '<div class="kpis" style="margin-bottom:12px">' +
+      '<div class="kpi t"><div class="k">Patients in ' + yr + '</div><div class="v">' + tot.total + '</div><div class="s">' + months + ' month' + (months === 1 ? '' : 's') + ' with data</div></div>' +
+      '<div class="kpi n"><div class="k">New</div><div class="v">' + tot.newC + '</div><div class="s">' + (tot.total ? Math.round(tot.newC / tot.total * 100) : 0) + '% of the year</div></div>' +
+      '<div class="kpi o"><div class="k">Follow-up</div><div class="v">' + tot.oldC + '</div><div class="s">' + (tot.total ? Math.round(tot.oldC / tot.total * 100) : 0) + '% of the year</div></div>' +
+      '<div class="kpi m"><div class="k">Average month</div><div class="v">' + avg.toFixed(1) + '</div><div class="s">per month with data</div></div>' +
+      '<div class="kpi f"><div class="k">Busiest month</div><div class="v" style="font-size:16px">' + (busiest.m ? esc(NS.fmtMonth(busiest.m).split(' ')[0]) : '—') + '</div><div class="s">' + (busiest.n || 'nothing yet') + (busiest.n ? ' patients' : '') + '</div></div>' +
+      '</div>' +
+      '<table class="st"><caption>' + esc(NS.db.current) + ' — ' + yr + ', month by month<small>Generated ' + esc(new Date().toLocaleString()) + '</small></caption>' +
+      '<thead><tr><th>Month</th><th>Patients</th><th></th><th>New</th><th>Follow-up</th><th>Male</th><th>Female</th><th>Med</th><th>Surg</th><th>Gyn</th><th>Ped</th><th>Working days</th></tr></thead><tbody>';
+
+    rows.forEach(function (r) {
+      var n = r.s.total;
+      h += '<tr><td>' + esc(NS.fmtMonth(r.mk)) + '</td>' +
+        '<td>' + (n || '–') + '</td>' +
+        '<td style="width:120px"><span class="ybar" style="width:' + (n ? Math.max(2, Math.round(n / maxM * 100)) : 0) + '%"></span></td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.newC || '–') + '</td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.oldC || '–') + '</td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.male || '–') + '</td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.female || '–') + '</td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.med || '–') + '</td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.surg || '–') + '</td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.gyn || '–') + '</td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.ped || '–') + '</td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.worked || '–') + '</td></tr>';
+    });
+
+    h += '</tbody><tfoot><tr class="total"><td>Total ' + yr + '</td><td>' + tot.total + '</td><td></td>' +
+      '<td>' + tot.newC + '</td><td>' + tot.oldC + '</td><td>' + tot.male + '</td><td>' + tot.female + '</td>' +
+      '<td>' + tot.med + '</td><td>' + tot.surg + '</td><td>' + tot.gyn + '</td><td>' + tot.ped + '</td><td>' + tot.worked + '</td></tr></tfoot></table>' +
+      '<div class="sign" style="margin-top:14px;display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">' +
+      '<span>Signature: ____________________</span><span>' + esc(NS.db.current) + '</span><span>Prepared from the OPD register</span></div>' +
+      '</div>';
+
+    var out = $('#statOutput');
+    if (out) out.innerHTML = h;
+    state.ran = true;
+    return tot;
   }
 
   /* One page a month for the file: totals, departments, every day, every week, signature. */
@@ -4142,6 +4264,7 @@ tr.dragging td{opacity:.45}
 
   NS.bindStats = bind;
   NS.runStats = run;
+  NS.yearView = yearView;
   NS.exportMonthCsv = exportMonthCsv;
   NS.statsState = state;
 })(window.OPD = window.OPD || {});
@@ -4472,7 +4595,13 @@ tr.dragging td{opacity:.45}
     var rf = $('#railStore');
     if (rf) rf.textContent = NS.humanSize(b) + ' · ' + all + ' patients';
   }
-  function renderInfo() { renderLocUI(); updateStoreInfo(); renderLockPanel(); }
+  function renderInfo() {
+    renderLocUI();
+    updateStoreInfo();
+    renderLockPanel();
+    var line = $('#lastImport'), li = NS.S.lastImport;
+    if (line) line.textContent = li ? ('Last import ' + li.when + ' · ' + li.mode + ' · ' + li.summary) : '';
+  }
 
   /* ---------------- menu ---------------- */
   function openMenu() {
@@ -4933,19 +5062,76 @@ tr.dragging td{opacity:.45}
         NS.toast(NS.S.target ? 'Target: ' + NS.S.target + ' patients a day.' : 'Target cleared.');
       });
     }
-    $('#fileImport').addEventListener('change', function (ev) {
-      var f = ev.target.files && ev.target.files[0];
-      if (!f) return;
-      if (!confirm('Import "' + f.name + '"? This replaces everything currently stored.')) { ev.target.value = ''; return; }
-      NS.importJson(f, function () {
-        NS.S.curM = NS.mKey(new Date());
-        NS.S.curD = NS.tKey();
-        NS.syncMonthInputs();
-        afterLocationChange();
-        NS.renderRegisterAll();
+    function afterImport(msg) {
+      NS.S.curM = NS.mKey(new Date());
+      NS.S.curD = NS.tKey();
+      NS.syncMonthInputs();
+      afterLocationChange();
+      NS.renderRegisterAll();
+      updateStoreInfo();
+      var line = $('#lastImport');
+      if (line) {
+        var li = NS.S.lastImport;
+        line.textContent = li ? ('Last import ' + li.when + ' · ' + li.mode + ' · ' + li.summary) : '';
+      }
+      if (msg) NS.toast(msg);
+    }
+
+    function importFile(file, mode) {
+      var r = new FileReader();
+      r.onload = function () {
+        var parsed;
+        try { parsed = JSON.parse(r.result); } catch (e) { NS.toast('That file is not valid JSON.'); return; }
+        if (parsed && parsed.kind === 'vault') { NS.toast('That is an encrypted backup — restore it from the lock screen.'); return; }
+        var incoming = NS.validDB(parsed);
+        var when = new Date().toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+        if (mode === 'merge') {
+          var stats = NS.mergeDB(NS.db, incoming);
+          NS.saveNow();
+          NS.S.lastImport = {
+            when: when, mode: 'merged',
+            summary: stats.locationsAdded + ' location(s) added, ' + stats.rowsAdded + ' patient(s) added, ' +
+              stats.rowsSkipped + ' already here, ' + stats.daysMerged + ' day(s) topped up'
+          };
+          NS.settingsSave();
+          afterImport('Merged: ' + stats.rowsAdded + ' patients added, ' + stats.rowsSkipped + ' already here.');
+          return;
+        }
+
+        NS.db.locations = incoming.locations;
+        NS.db.current = incoming.current;
+        NS.saveNow();
+        var total = 0;
+        NS.locNames().forEach(function (n) {
+          var E = NS.db.locations[n].entries || {};
+          Object.keys(E).forEach(function (k) { total += ((E[k] || {}).rows || []).filter(NS.hasD).length; });
+        });
+        NS.S.lastImport = {
+          when: when, mode: 'replaced',
+          summary: NS.locNames().length + ' location(s), ' + total + ' patient(s)'
+        };
+        NS.settingsSave();
+        afterImport('Replaced: ' + NS.locNames().length + ' location(s), ' + total + ' patients.');
+      };
+      r.readAsText(file);
+    }
+
+    function wireImport(inputId, mode, question) {
+      var el = $('#' + inputId);
+      if (!el) return;
+      el.addEventListener('change', function (ev) {
+        var f = ev.target.files && ev.target.files[0];
+        if (!f) return;
+        if (!confirm(question)) { ev.target.value = ''; return; }
+        importFile(f, mode);
+        ev.target.value = '';
       });
-      ev.target.value = '';
-    });
+    }
+    wireImport('fileMerge', 'merge',
+      'Merge this file into the register?\n\nNothing already here is removed; patients with the same OPD number and name on the same day are skipped.');
+    wireImport('fileImport', 'replace',
+      'Replace everything with this file?\n\nEvery location and month currently stored will be thrown away.');
 
     var top = $('#qTop');
     if (top) top.addEventListener('input', function () {

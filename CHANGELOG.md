@@ -1,5 +1,26 @@
 # Changelog
 
+## 3.9.0 — 2026-11-12
+
+The annual report, and an import that does not have to throw anything away.
+
+### Added
+- **Year view** in Statistics — twelve months with a bar each, the annual totals, the average
+  month and the busiest month, on one screen, with a signature line when printed. The column
+  picker steps aside, because this view has its own columns.
+- **Merge an import.** Importing used to be replace-only. Now: *Merge a backup* adds what is
+  missing — a location, a day, a patient — and keeps what is here; *Replace with a backup* is
+  still there for a restore, and asks first. Same OPD number and name on the same day counts
+  as the same patient and is skipped, so merging two phones does not double the register.
+- **"What changed" after an import** — "Last import 12 Nov, 6:51 pm · merged · 1 location(s)
+  added, 2 patient(s) added, 1 already here, 1 day(s) topped up", kept in the panel and in the
+  settings so it survives a reload.
+- **A signature line on the printed week**, matching the digest.
+
+### Tests
+- 113 node checks (was 106) and 150 browser checks (was 137): the merge rules, a real file
+  uploaded through the panel, the replace path, and the year view.
+
 ## 3.8.0 — 2026-11-12
 
 The lock story closed: it closes itself, and it can leave the device encrypted.

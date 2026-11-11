@@ -249,6 +249,7 @@
               <button data-mode="day" aria-pressed="true">Day-wise</button>
               <button data-mode="month" aria-pressed="false">Month-wise</button>
               <button data-mode="range" aria-pressed="false">Date range</button>
+              <button data-mode="year" aria-pressed="false">Year</button>
             </div>
             <div class="field" id="fldMonth"><label for="statMonth">Month</label><input type="month" id="statMonth"/></div>
             <div class="field" id="fldYear" hidden><label for="statYear">Year</label><input type="number" id="statYear" min="2000" max="2100"/></div>
@@ -257,6 +258,7 @@
             <button class="btn primary" id="btnRunStats">Run</button>
           </div>
 
+          <div id="colsBlock">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 6px">
             <h3 style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted-2)">Columns</h3>
             <div class="grow" style="flex:1"></div>
@@ -264,6 +266,7 @@
             <button class="btn sm ghost" id="btnColNone">None</button>
           </div>
           <div class="cols" id="colsBox"></div>
+          </div>
         </div>
       </section>
 
@@ -332,10 +335,12 @@
               <dl class="kv" id="storeInfo"></dl>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
                 <button class="btn" id="btnExportJson"><svg width="14" height="14"><use href="#i-down"/></svg>Export backup</button>
-                <label class="btn"><svg width="14" height="14"><use href="#i-up"/></svg>Import backup<input type="file" id="fileImport" accept=".json,application/json" hidden/></label>
+                <label class="btn"><svg width="14" height="14"><use href="#i-up"/></svg>Merge a backup<input type="file" id="fileMerge" accept=".json,application/json" hidden/></label>
+                <label class="btn"><svg width="14" height="14"><use href="#i-up"/></svg>Replace with a backup<input type="file" id="fileImport" accept=".json,application/json" hidden/></label>
                 <button class="btn" id="btnExportCsvAll">Export CSV</button>
               </div>
-              <p style="font-size:12px;color:var(--muted)">A backup file holds every location and every month. Export one weekly and keep it in cloud storage.</p>
+              <p style="font-size:12px;color:var(--muted)">A backup file holds every location and every month. <b>Merge</b> adds what is missing and keeps what is here; <b>Replace</b> throws the current register away and puts the file in its place.</p>
+              <p style="font-size:12px;color:var(--muted)" id="lastImport"></p>
             </div>
           </div>
         </section>

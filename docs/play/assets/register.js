@@ -309,7 +309,10 @@
       '<span><b class="num">' + avg + '</b> per active day</span>' +
       (busiest.k ? '<span>busiest <b>' + esc(NS.fmtDay(busiest.k)) + '</b> · <span class="num">' + busiest.n + '</span></span>' : '') +
       '</div>' +
-      '<div class="weekgrid">' + cols + '</div>';
+      '<div class="weekgrid">' + cols + '</div>' +
+      '<div class="wfoot"><span>Signature: ____________________</span>' +
+      '<span>' + esc(NS.db.current) + ' · ' + esc(NS.fmtMonth(S.curM)) + '</span>' +
+      '<span>Prepared from the OPD register</span></div>';
   }
 
   function renderRegister() {

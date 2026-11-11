@@ -252,6 +252,33 @@ eq('loc: adds one', NS.locNames().length, before + 1);
 NS.renameLoc('Clinic C', 'Clinic D');
 ok('loc: renames', NS.locNames().indexOf('Clinic D') !== -1 && NS.locNames().indexOf('Clinic C') === -1);
 
+/* ---------- merging a second register ---------- */
+const host = NS.validDB({ current: 'A', locations: { A: { entries: {
+  '2026-04-01': { status: 'working', note: '', rows: [
+    { opd: '1', caseType: 'New', department: 'Medicine', name: 'Same', age: '30', sex: 'M', address: '', diagnosis: 'Fever', treatment: '' }
+  ] }
+} } } });
+const incoming = NS.validDB({ current: 'B', locations: {
+  A: { entries: {
+    '2026-04-01': { status: 'holiday', note: 'Camp', rows: [
+      { opd: '1', caseType: 'New', department: 'Medicine', name: 'Same', age: '30', sex: 'M', address: '', diagnosis: 'Fever', treatment: '' },
+      { opd: '2', caseType: 'New', department: 'Surgery', name: 'New One', age: '44', sex: 'F', address: '', diagnosis: 'Hernia', treatment: '' }
+    ] },
+    '2026-04-02': { status: 'working', note: '', rows: [
+      { opd: '3', caseType: 'New', department: 'Pediatrics', name: 'Child', age: '6', sex: 'M', address: '', diagnosis: '', treatment: '' }
+    ] }
+  } },
+  B: { entries: {} }
+} });
+const mstats = NS.mergeDB(host, incoming);
+eq('merge: a new location is added', mstats.locationsAdded, 1);
+eq('merge: a day that was not here is added', mstats.daysAdded, 1);
+eq('merge: the duplicate patient is skipped', mstats.rowsSkipped, 1);
+eq('merge: only the genuinely new row is added', mstats.rowsAdded, 2);
+eq('merge: the existing row is untouched', host.locations.A.entries['2026-04-01'].rows.filter(NS.hasD).length, 2);
+eq('merge: an empty note and status are topped up', [host.locations.A.entries['2026-04-01'].note, host.locations.A.entries['2026-04-01'].status], ['Camp', 'holiday']);
+eq('merge: the imported location arrives empty', Object.keys(host.locations.B.entries).length, 0);
+
 /* ---------- lock handover ---------- */
 const keep = JSON.parse(JSON.stringify(NS.db));
 const keepLocs = NS.locNames().length, keepLoc = NS.db.current;

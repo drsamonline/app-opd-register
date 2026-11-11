@@ -133,9 +133,11 @@
     state.mode = m;
     $$('#statMode button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.mode === m)); });
     $('#fldMonth').hidden = m !== 'day';
-    $('#fldYear').hidden = m !== 'month';
+    $('#fldYear').hidden = (m !== 'month' && m !== 'year');
     $('#fldFrom').hidden = m !== 'range';
     $('#fldTo').hidden = m !== 'range';
+    var cb = $('#colsBlock');
+    if (cb) cb.hidden = (m === 'year');   /* the year view has its own columns */
   }
 
   function totals(rows, cols) {
@@ -183,6 +185,12 @@
   }
 
   function run() {
+    if (state.mode === 'year') {
+      var y = $('#statYear');
+      if (!y.value) y.value = new Date().getFullYear();
+      yearView();
+      return;
+    }
     if (build() === null) return;
     state.ran = true;
     render();
@@ -253,6 +261,61 @@
         return '<tr><td>' + x.d + '</td><td style="text-align:left;color:#64748b">' + esc(NS.ST[x.st].s) +
           (x.note ? ' · ' + esc(x.note) : '') + '</td><td>' + (x.s.total || '–') + '</td></tr>';
       }).join('') + '</tbody></table></div>';
+  }
+
+  /* The year on one screen: twelve months, a bar each, and the annual totals. */
+  function yearView() {
+    var yr = parseInt($('#statYear').value, 10) || new Date().getFullYear();
+    var rows = [], tot = blank(), busiest = { m: null, n: 0 }, months = 0;
+    for (var m = 1; m <= 12; m++) {
+      var mk = yr + '-' + NS.pad(m);
+      var s = monthStats(mk);
+      if (s.total > 0) months++;
+      if (s.total > busiest.n) busiest = { m: mk, n: s.total };
+      ['total', 'male', 'female', 'newC', 'oldC', 'med', 'surg', 'gyn', 'ped', 'worked'].forEach(function (k) { tot[k] += s[k] || 0; });
+      rows.push({ mk: mk, s: s });
+    }
+    var maxM = Math.max(1, Math.max.apply(null, rows.map(function (r) { return r.s.total; })));
+    var avg = months ? (tot.total / months) : 0;
+
+    var h = '<div class="yearview">' +
+      '<div class="kpis" style="margin-bottom:12px">' +
+      '<div class="kpi t"><div class="k">Patients in ' + yr + '</div><div class="v">' + tot.total + '</div><div class="s">' + months + ' month' + (months === 1 ? '' : 's') + ' with data</div></div>' +
+      '<div class="kpi n"><div class="k">New</div><div class="v">' + tot.newC + '</div><div class="s">' + (tot.total ? Math.round(tot.newC / tot.total * 100) : 0) + '% of the year</div></div>' +
+      '<div class="kpi o"><div class="k">Follow-up</div><div class="v">' + tot.oldC + '</div><div class="s">' + (tot.total ? Math.round(tot.oldC / tot.total * 100) : 0) + '% of the year</div></div>' +
+      '<div class="kpi m"><div class="k">Average month</div><div class="v">' + avg.toFixed(1) + '</div><div class="s">per month with data</div></div>' +
+      '<div class="kpi f"><div class="k">Busiest month</div><div class="v" style="font-size:16px">' + (busiest.m ? esc(NS.fmtMonth(busiest.m).split(' ')[0]) : '—') + '</div><div class="s">' + (busiest.n || 'nothing yet') + (busiest.n ? ' patients' : '') + '</div></div>' +
+      '</div>' +
+      '<table class="st"><caption>' + esc(NS.db.current) + ' — ' + yr + ', month by month<small>Generated ' + esc(new Date().toLocaleString()) + '</small></caption>' +
+      '<thead><tr><th>Month</th><th>Patients</th><th></th><th>New</th><th>Follow-up</th><th>Male</th><th>Female</th><th>Med</th><th>Surg</th><th>Gyn</th><th>Ped</th><th>Working days</th></tr></thead><tbody>';
+
+    rows.forEach(function (r) {
+      var n = r.s.total;
+      h += '<tr><td>' + esc(NS.fmtMonth(r.mk)) + '</td>' +
+        '<td>' + (n || '–') + '</td>' +
+        '<td style="width:120px"><span class="ybar" style="width:' + (n ? Math.max(2, Math.round(n / maxM * 100)) : 0) + '%"></span></td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.newC || '–') + '</td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.oldC || '–') + '</td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.male || '–') + '</td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.female || '–') + '</td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.med || '–') + '</td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.surg || '–') + '</td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.gyn || '–') + '</td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.ped || '–') + '</td>' +
+        '<td class="' + (n ? '' : 'z') + '">' + (r.s.worked || '–') + '</td></tr>';
+    });
+
+    h += '</tbody><tfoot><tr class="total"><td>Total ' + yr + '</td><td>' + tot.total + '</td><td></td>' +
+      '<td>' + tot.newC + '</td><td>' + tot.oldC + '</td><td>' + tot.male + '</td><td>' + tot.female + '</td>' +
+      '<td>' + tot.med + '</td><td>' + tot.surg + '</td><td>' + tot.gyn + '</td><td>' + tot.ped + '</td><td>' + tot.worked + '</td></tr></tfoot></table>' +
+      '<div class="sign" style="margin-top:14px;display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">' +
+      '<span>Signature: ____________________</span><span>' + esc(NS.db.current) + '</span><span>Prepared from the OPD register</span></div>' +
+      '</div>';
+
+    var out = $('#statOutput');
+    if (out) out.innerHTML = h;
+    state.ran = true;
+    return tot;
   }
 
   /* One page a month for the file: totals, departments, every day, every week, signature. */
@@ -364,6 +427,7 @@
 
   NS.bindStats = bind;
   NS.runStats = run;
+  NS.yearView = yearView;
   NS.exportMonthCsv = exportMonthCsv;
   NS.statsState = state;
 })(window.OPD = window.OPD || {});

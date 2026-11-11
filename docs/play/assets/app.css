@@ -553,6 +553,15 @@ table.reg td input[type="date"]::-webkit-calendar-picker-indicator{opacity:.45;c
 .digest .sign{margin-top:18px;display:flex;justify-content:space-between;font-size:11px;color:#64748b;border-top:1px solid #dbe3ee;padding-top:8px}
 @media print{.digest .dk div,.digest th,.digest tr.total td{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
 
+/* the year view */
+.ybar{display:block;height:8px;border-radius:4px;background:var(--accent);min-width:0}
+.yearview .st td:nth-child(3){padding-right:2px}
+.wfoot{
+  display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding:9px 12px;border-top:1px solid var(--line-2);font-size:11px;color:var(--muted);
+}
+@media print{ .wfoot{border-top:1px solid #999;color:#444} .yearview .ybar{print-color-adjust:exact;-webkit-print-color-adjust:exact} }
+
 /* ---------------- stats ---------------- */
 .segmented{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel-2)}
 .segmented button{

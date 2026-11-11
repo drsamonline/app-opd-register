@@ -43,6 +43,8 @@ Screens at both widths: [`docs/assets/app-desktop.png`](docs/assets/app-desktop.
 [`docs/assets/app-notice.png`](docs/assets/app-notice.png) (the one-time offer),
 [`docs/assets/app-lock.png`](docs/assets/app-lock.png) (the lock screen),
 [`docs/assets/app-lock-on.png`](docs/assets/app-lock-on.png) (the lock panel when on),
+[`docs/assets/app-year.png`](docs/assets/app-year.png) (the year on one screen),
+[`docs/assets/app-import.png`](docs/assets/app-import.png) (import: merge or replace),
 [`docs/assets/app-settings.png`](docs/assets/app-settings.png) (display, lock, storage),
 [`docs/assets/app-digest.png`](docs/assets/app-digest.png) (the printable digest) and
 [`docs/assets/app-stats.png`](docs/assets/app-stats.png). Badges are drawn locally by
@@ -54,7 +56,7 @@ badge service, because an offline-first app should not need the internet to desc
 `docs/play/index.html` is the whole app. No build step, no install, no dependencies.
 
 ```
-node tests/self-tests.js     # 106 checks, no browser needed (119 more run in a real browser)
+node tests/self-tests.js     # 113 checks, no browser needed (150 more run in a real browser)
 python3 scripts/build.py     # the single-file build -> dist/opd-register.html
 python3 scripts/badges.py    # the README badges
 ```
@@ -70,7 +72,8 @@ nothing is written to your device.
 | **Register** | The month calendar with day statuses and per-day counts; then one section per day: status dropdown, free-text note, patient count, add-row, print-day and clear-day. **Month or week scope** — the week as seven columns you can compare, with a weekly total —
 a **row filter** across the visible days (or **inside one day**), and a **range of days** marked in one go. Print
 prints whatever is on screen: the month, or the week on one A4. On a desktop a sticky, column-aligned grid; on a phone a card per patient and a full-screen editor. |
-| **Statistics** | Day-wise, month-wise or any date range, with 17 selectable columns (summary, departments, sex-within-department, activity). Print, Excel (.xls), CSV — and a **one-page digest** per month: totals, departments, every day in two columns, every week, a note on entries missing a diagnosis, and a signature line. |
+| **Statistics** | Day-wise, month-wise or any date range, with 17 selectable columns (summary, departments, sex-within-department, activity). **Year view** — twelve months, a bar each, and the annual totals on one screen (it prints
+too). Print, Excel (.xls), CSV — and a **one-page digest** per month: totals, departments, every day in two columns, every week, a note on entries missing a diagnosis, and a signature line. |
 | **Patients** | Ranked substring search over every month — name, OPD no., age, department, diagnosis, treatment, address — optionally across all locations, sorted newest / oldest / name / OPD. A hit opens that patient in the editor. |
 | **About & help** | Storage used, patient and month counts, locations, backup and restore, keyboard reference, the counting rules, privacy and licence. |
 
@@ -127,7 +130,10 @@ help) and here:
 `localStorage` automatically — the engine in use is shown in *About & help → This device*.
 
 No account, no analytics, no cookie, no network call. Clearing site data erases it, so
-**export a backup weekly** — the import restores everything, including the location names.
+**export a backup weekly**. Importing offers two ways in: **Replace** puts the file in place
+of everything, and **Merge** adds what is missing — a location, a day, a patient — while
+keeping what is here; the same OPD number and name on the same day is treated as the same
+patient and is not duplicated. Both say afterwards exactly what they did.
 The file format is plain JSON and is compatible with the earlier v2 release.
 
 **Optional passphrase lock — offered once, never nagged.** On first open the app asks
@@ -160,7 +166,7 @@ dist/opd-register.html   the single-file build (generated)
 scripts/build.py         inlines css + js into the single file
 scripts/badges.py        draws docs/assets/badge-*.svg
 scripts/icons.py         renders the PWA icon set from icon.svg
-tests/self-tests.js      106 checks over the real source, no browser
+tests/self-tests.js      113 checks over the real source, no browser
 ```
 
 The app is six classic scripts in one namespace, not ES modules — so it also runs from

@@ -156,7 +156,13 @@
     var rf = $('#railStore');
     if (rf) rf.textContent = NS.humanSize(b) + ' · ' + all + ' patients';
   }
-  function renderInfo() { renderLocUI(); updateStoreInfo(); renderLockPanel(); }
+  function renderInfo() {
+    renderLocUI();
+    updateStoreInfo();
+    renderLockPanel();
+    var line = $('#lastImport'), li = NS.S.lastImport;
+    if (line) line.textContent = li ? ('Last import ' + li.when + ' · ' + li.mode + ' · ' + li.summary) : '';
+  }
 
   /* ---------------- menu ---------------- */
   function openMenu() {
@@ -617,19 +623,76 @@
         NS.toast(NS.S.target ? 'Target: ' + NS.S.target + ' patients a day.' : 'Target cleared.');
       });
     }
-    $('#fileImport').addEventListener('change', function (ev) {
-      var f = ev.target.files && ev.target.files[0];
-      if (!f) return;
-      if (!confirm('Import "' + f.name + '"? This replaces everything currently stored.')) { ev.target.value = ''; return; }
-      NS.importJson(f, function () {
-        NS.S.curM = NS.mKey(new Date());
-        NS.S.curD = NS.tKey();
-        NS.syncMonthInputs();
-        afterLocationChange();
-        NS.renderRegisterAll();
+    function afterImport(msg) {
+      NS.S.curM = NS.mKey(new Date());
+      NS.S.curD = NS.tKey();
+      NS.syncMonthInputs();
+      afterLocationChange();
+      NS.renderRegisterAll();
+      updateStoreInfo();
+      var line = $('#lastImport');
+      if (line) {
+        var li = NS.S.lastImport;
+        line.textContent = li ? ('Last import ' + li.when + ' · ' + li.mode + ' · ' + li.summary) : '';
+      }
+      if (msg) NS.toast(msg);
+    }
+
+    function importFile(file, mode) {
+      var r = new FileReader();
+      r.onload = function () {
+        var parsed;
+        try { parsed = JSON.parse(r.result); } catch (e) { NS.toast('That file is not valid JSON.'); return; }
+        if (parsed && parsed.kind === 'vault') { NS.toast('That is an encrypted backup — restore it from the lock screen.'); return; }
+        var incoming = NS.validDB(parsed);
+        var when = new Date().toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+        if (mode === 'merge') {
+          var stats = NS.mergeDB(NS.db, incoming);
+          NS.saveNow();
+          NS.S.lastImport = {
+            when: when, mode: 'merged',
+            summary: stats.locationsAdded + ' location(s) added, ' + stats.rowsAdded + ' patient(s) added, ' +
+              stats.rowsSkipped + ' already here, ' + stats.daysMerged + ' day(s) topped up'
+          };
+          NS.settingsSave();
+          afterImport('Merged: ' + stats.rowsAdded + ' patients added, ' + stats.rowsSkipped + ' already here.');
+          return;
+        }
+
+        NS.db.locations = incoming.locations;
+        NS.db.current = incoming.current;
+        NS.saveNow();
+        var total = 0;
+        NS.locNames().forEach(function (n) {
+          var E = NS.db.locations[n].entries || {};
+          Object.keys(E).forEach(function (k) { total += ((E[k] || {}).rows || []).filter(NS.hasD).length; });
+        });
+        NS.S.lastImport = {
+          when: when, mode: 'replaced',
+          summary: NS.locNames().length + ' location(s), ' + total + ' patient(s)'
+        };
+        NS.settingsSave();
+        afterImport('Replaced: ' + NS.locNames().length + ' location(s), ' + total + ' patients.');
+      };
+      r.readAsText(file);
+    }
+
+    function wireImport(inputId, mode, question) {
+      var el = $('#' + inputId);
+      if (!el) return;
+      el.addEventListener('change', function (ev) {
+        var f = ev.target.files && ev.target.files[0];
+        if (!f) return;
+        if (!confirm(question)) { ev.target.value = ''; return; }
+        importFile(f, mode);
+        ev.target.value = '';
       });
-      ev.target.value = '';
-    });
+    }
+    wireImport('fileMerge', 'merge',
+      'Merge this file into the register?\n\nNothing already here is removed; patients with the same OPD number and name on the same day are skipped.');
+    wireImport('fileImport', 'replace',
+      'Replace everything with this file?\n\nEvery location and month currently stored will be thrown away.');
 
     var top = $('#qTop');
     if (top) top.addEventListener('input', function () {

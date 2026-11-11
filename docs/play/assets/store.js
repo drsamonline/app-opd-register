@@ -102,7 +102,7 @@
   /* ---------- state ---------- */
   var DB = null;
   var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {},
-            colOrder: 'default', colOrderByLoc: {}, lockIdle: 10, target: 0,
+            colOrder: 'default', colOrderByLoc: {}, lockIdle: 10, target: 0, lastImport: null,
             locked: false, lockedNow: false, lockChoice: '' };
   var events = {};
   var saveState = 'saved';
@@ -151,6 +151,7 @@
         if (st.colOrder) S.colOrder = st.colOrder;
         if (st.colOrderByLoc && typeof st.colOrderByLoc === 'object') S.colOrderByLoc = st.colOrderByLoc;
         if (typeof st.lockIdle === 'number') S.lockIdle = st.lockIdle;
+        if (st.lastImport) S.lastImport = st.lastImport;
         if (typeof st.target === 'number') S.target = st.target;
         if (st.lockChoice === 'on' || st.lockChoice === 'off') S.lockChoice = st.lockChoice;
       }
@@ -195,7 +196,7 @@
     try {
       localStorage.setItem(KS, JSON.stringify({
         theme: S.theme, filter: S.filter, colOrder: S.colOrder, colOrderByLoc: S.colOrderByLoc,
-        lockIdle: S.lockIdle, target: S.target, lockChoice: S.lockChoice
+        lockIdle: S.lockIdle, target: S.target, lockChoice: S.lockChoice, lastImport: S.lastImport
       }));
     } catch (e) {}
   }
@@ -557,6 +558,47 @@
     r.readAsText(file);
   }
 
+  /* ---------- merging an imported file into what is here ----------
+     Replace is the default and the honest one for a restore. Merge is for the case that
+     actually happens: two phones, one register. Same OPD number and name on the same day
+     is treated as the same patient and is not duplicated. */
+  function mergeDB(target, incoming) {
+    var stats = { locationsAdded: 0, daysAdded: 0, daysMerged: 0, rowsAdded: 0, rowsSkipped: 0 };
+    var T = target.locations, I = incoming.locations || {};
+    Object.keys(I).forEach(function (ln) {
+      if (!T[ln]) { T[ln] = { entries: {} }; stats.locationsAdded++; }
+      if (!T[ln].entries) T[ln].entries = {};
+      var te = T[ln].entries, ie = I[ln].entries || {};
+      Object.keys(ie).forEach(function (k) {
+        var src = ie[k] || {}, dst = te[k];
+        if (!dst) {
+          te[k] = JSON.parse(JSON.stringify(src));
+          stats.daysAdded++;
+          stats.rowsAdded += (src.rows || []).filter(hasD).length;
+          return;
+        }
+        var changed = false;
+        if ((!dst.status || dst.status === 'working') && src.status && src.status !== 'working') { dst.status = src.status; changed = true; }
+        if (!String(dst.note || '').trim() && String(src.note || '').trim()) { dst.note = src.note; changed = true; }
+        if (!Array.isArray(dst.rows)) dst.rows = [];
+        (src.rows || []).forEach(function (r) {
+          if (!hasD(r)) return;
+          var opd = String(r.opd || '').trim();
+          var dup = opd && dst.rows.some(function (x) {
+            return String(x.opd || '').trim() === opd && String(x.name || '') === String(r.name || '');
+          });
+          if (dup) { stats.rowsSkipped++; return; }
+          var slot = dst.rows.findIndex(function (x) { return !hasD(x); });
+          if (slot === -1) dst.rows.push(Object.assign({}, r));
+          else dst.rows[slot] = Object.assign({}, r);
+          stats.rowsAdded++; changed = true;
+        });
+        if (changed) stats.daysMerged++;
+      });
+    });
+    return stats;
+  }
+
   /* ---------- demo data (memory-safe: caller decides) ---------- */
   function demoDB() {
     var names = ['Ramesh Patel','Fatima Shaikh','Arjun Desai','Meena Joshi','Kiran Rao','Suresh Nair','Anita Shah','Vikram Singh','Priya Menon','Imran Qureshi','Lata Kulkarni','Devang Bhatt','Sneha Pillai','Mohan Yadav','Rekha Iyer','Aditya Verma'];
@@ -644,5 +686,5 @@
   NS.daySnapshot = daySnapshot; NS.restoreDay = restoreDay;
   NS.switchLoc = switchLoc; NS.addLoc = addLoc; NS.renameLoc = renameLoc; NS.delLoc = delLoc;
   NS.download = download; NS.exportJson = exportJson; NS.importJson = importJson; NS.demoDB = demoDB;
-  NS.validDB = validDB; NS.setDemo = setDemo; NS.isDemo = isDemo;
+  NS.validDB = validDB; NS.mergeDB = mergeDB; NS.setDemo = setDemo; NS.isDemo = isDemo;
 })(window.OPD = window.OPD || {});

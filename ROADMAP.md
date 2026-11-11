@@ -30,6 +30,9 @@ backup on the lock screen · settings restored at boot.
 **3.8.0** — auto-lock when idle · encrypted backup out and back in · column order per
 location.
 
+**3.9.0** — year view · merge an import · "what changed" after an import · signature line on
+the printed week.
+
 ## Next (small, high value)
 
 | Item | Why | Cost |
