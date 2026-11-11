@@ -27,12 +27,19 @@ jobs:
           python-version: '3.12'
       - name: The single-file build must still build
         run: python3 scripts/build.py
-      - name: The build must contain no external reference
+      # A link a doctor can click is fine; a RESOURCE fetched from another host is not.
+      # This must stay a check on script/img/link/iframe, or it fails on the GitHub
+      # link in the sidebar and proves nothing about the app going offline.
+      - name: The build must load nothing from another host
         run: |
           set -e
-          if grep -Eq '(src|href)="https?://' dist/opd-register.html; then
-            echo "::error::the single-file build references an external URL"
-            grep -Eo '(src|href)="https?://[^"]+"' dist/opd-register.html | head -5
+          if grep -Eq '<(script|img|link|iframe)[^>]+(src|href)="https?://' dist/opd-register.html; then
+            echo "::error::the single-file build loads a resource from an external host"
+            grep -Eo '<(script|img|link|iframe)[^>]+(src|href)="https?://[^"]+"' dist/opd-register.html | head -5
             exit 1
           fi
-          echo "single file: no external references"
+          if grep -Eq '<script src=|<link rel="stylesheet"' dist/opd-register.html; then
+            echo "::error::an asset was not inlined"
+            exit 1
+          fi
+          echo "single file: no external resources, everything inlined"
