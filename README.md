@@ -22,7 +22,7 @@ browser on your device; the page makes no network request at all.
 | **Single HTML file** | [`dist/opd-register.html`](dist/opd-register.html) — ~130 KB, opens from a USB stick |
 | **Windows EXE / Android APK** | [releases](https://github.com/drsamonline/app-opd-register/releases/latest) |
 | **Source** | https://github.com/drsamonline/app-opd-register |
-| **Changelog** | [CHANGELOG.md](CHANGELOG.md) |
+| **Changelog** | [CHANGELOG.md](CHANGELOG.md) · [ROADMAP.md](ROADMAP.md) |
 | **All projects** | https://drsamonline.github.io/ |
 
 <!-- shot:start -->
