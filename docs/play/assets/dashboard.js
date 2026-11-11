@@ -61,7 +61,7 @@
     if (extraN) order.push(['Other / unspecified', extraN, 'b6']);
     if (box) box.innerHTML = order.map(function (o) {
       return '<div class="bar ' + o[2] + '"><span class="bl">' + esc(o[0]) + '</span>' +
-        '<span class="bt"><i class="bf" style="width:' + Math.round(o[1] / maxD * 100) + '%"></i></span>' +
+        '<span class="bt"><i class="bf" style="width:' + (o[1] ? Math.max(2, Math.round(o[1] / maxD * 100)) : 0) + '%"></i></span>' +
         '<span class="bv num">' + o[1] + '<small>' + (a.total ? pct(o[1], a.total) : 0) + '%</small></span></div>';
     }).join('');
 

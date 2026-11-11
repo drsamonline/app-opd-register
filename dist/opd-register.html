@@ -217,7 +217,7 @@ main{grid-area:main;min-width:0;padding:14px 16px 28px;overflow-x:hidden}
 .bar{display:grid;grid-template-columns:112px minmax(0,1fr) 62px;align-items:center;gap:10px}
 .bar .bl{font-size:12.5px;font-weight:600;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar .bt{height:8px;border-radius:4px;background:var(--line-2);overflow:hidden}
-.bar .bf{display:block;height:100%;border-radius:4px;background:var(--accent);transition:width .35s ease;min-width:2px}
+.bar .bf{display:block;height:100%;border-radius:4px;background:var(--accent);transition:width .35s ease}
 .bar.b2 .bf{background:var(--violet)} .bar.b3 .bf{background:var(--ok)}
 .bar.b4 .bf{background:var(--warn)} .bar.b5 .bf{background:var(--info)}
 .bar.b6 .bf{background:var(--muted-2)}
@@ -788,6 +788,19 @@ tr.dragging td{opacity:.45}
 }
 
 /* the lock screen */
+.notice{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;max-width:1560px;margin:0 auto 12px;
+  padding:11px 14px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);
+  border-radius:var(--r-l);box-shadow:var(--shadow);
+}
+.notice[hidden]{display:none!important}
+.notice .ni{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--accent-l);color:var(--accent-d);font-size:15px;flex:0 0 auto}
+.notice .nt{flex:1;min-width:200px}
+.notice .nt b{display:block;font-size:13px;color:var(--ink)}
+.notice .nt span{display:block;font-size:12px;color:var(--muted);margin-top:1px}
+.notice .na{display:flex;gap:6px;flex-wrap:wrap}
+@media (max-width:560px){.notice .na{width:100%}.notice .na .btn{flex:1}}
+
 .lockwrap{
   position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:20px;
   background:var(--bg);overflow:auto;
@@ -852,6 +865,7 @@ tr.dragging td{opacity:.45}
   <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></symbol>
   <symbol id="i-dots" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></symbol>
 </defs></svg>
 
@@ -912,6 +926,15 @@ tr.dragging td{opacity:.45}
 
   <!-- ============ MAIN ============ -->
   <main id="main">
+    <div class="notice" id="lockNotice" hidden>
+      <div class="ni">⛨</div>
+      <div class="nt"><b>Protect this register with a passphrase?</b>
+        <span>Optional. Turning it on encrypts everything on this device. Skipping it changes nothing else — the register works exactly the same.</span></div>
+      <div class="na">
+        <button class="btn sm primary" id="btnNoticeOn">Turn it on</button>
+        <button class="btn sm ghost" id="btnNoticeOff">Not now</button>
+      </div>
+    </div>
 
     <!-- ---------- DASHBOARD ---------- -->
     <section class="view" id="view-dash">
@@ -1268,6 +1291,7 @@ tr.dragging td{opacity:.45}
   <button data-act="csv"><svg width="15" height="15"><use href="#i-down"/></svg>Export month (CSV)</button>
   <button data-act="print"><svg width="15" height="15"><use href="#i-print"/></svg>Print register</button>
   <hr/>
+  <button data-act="lock"><svg width="15" height="15"><use href="#i-lock"/></svg>Lock &amp; privacy</button>
   <button data-act="today"><svg width="15" height="15"><use href="#i-reg"/></svg>Go to today</button>
   <button data-act="install" id="miInstall" style="display:none"><svg width="15" height="15"><use href="#i-check"/></svg>Install app</button>
   <button data-act="demo"><svg width="15" height="15"><use href="#i-copy"/></svg>Load demo data</button>
@@ -1320,6 +1344,8 @@ tr.dragging td{opacity:.45}
     </div>
     <button class="btn primary block" id="btnUnlock" type="submit">Unlock</button>
     <p class="lerr" id="lockErr" hidden></p>
+    <button class="btn ghost block" id="btnLockImport" type="button" style="min-height:36px;font-size:12.5px">I have a backup file — start from that</button>
+    <input type="file" id="lockImportFile" accept=".json,application/json" hidden/>
   </form>
 </div>
 
@@ -1757,7 +1783,7 @@ tr.dragging td{opacity:.45}
   /* ---------- state ---------- */
   var DB = null;
   var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {},
-            colOrder: 'default', target: 0, locked: false, lockedNow: false };
+            colOrder: 'default', target: 0, locked: false, lockedNow: false, lockChoice: '' };
   var events = {};
   var saveState = 'saved';
 
@@ -1794,7 +1820,23 @@ tr.dragging td{opacity:.45}
 
   /* Load is asynchronous now: IndexedDB, the migration from localStorage, and the vault
      all resolve before the first render. Returns 'locked' when a passphrase is needed. */
+  /* settings live in localStorage whatever the database engine is — they are tiny, and
+     reading them synchronously keeps the first paint honest */
+  function loadSettings() {
+    try {
+      var st = JSON.parse(localStorage.getItem(KS) || '{}');
+      if (st && typeof st === 'object') {
+        if (st.theme === 'dark' || st.theme === 'light') S.theme = st.theme;
+        if (st.filter) S.filter = st.filter;
+        if (st.colOrder) S.colOrder = st.colOrder;
+        if (typeof st.target === 'number') S.target = st.target;
+        if (st.lockChoice === 'on' || st.lockChoice === 'off') S.lockChoice = st.lockChoice;
+      }
+    } catch (e) {}
+  }
+
   function load() {
+    loadSettings();
     return NS.storage.init().then(function () {
       return NS.storage.get('vault');
     }).then(function (vault) {
@@ -1829,7 +1871,7 @@ tr.dragging td{opacity:.45}
 
   function settingsSave() {
     try {
-      localStorage.setItem(KS, JSON.stringify({ theme: S.theme, filter: S.filter, colOrder: S.colOrder, target: S.target }));
+      localStorage.setItem(KS, JSON.stringify({ theme: S.theme, filter: S.filter, colOrder: S.colOrder, target: S.target, lockChoice: S.lockChoice }));
     } catch (e) {}
   }
 
@@ -3521,7 +3563,7 @@ tr.dragging td{opacity:.45}
     if (extraN) order.push(['Other / unspecified', extraN, 'b6']);
     if (box) box.innerHTML = order.map(function (o) {
       return '<div class="bar ' + o[2] + '"><span class="bl">' + esc(o[0]) + '</span>' +
-        '<span class="bt"><i class="bf" style="width:' + Math.round(o[1] / maxD * 100) + '%"></i></span>' +
+        '<span class="bt"><i class="bf" style="width:' + (o[1] ? Math.max(2, Math.round(o[1] / maxD * 100)) : 0) + '%"></i></span>' +
         '<span class="bv num">' + o[1] + '<small>' + (a.total ? pct(o[1], a.total) : 0) + '%</small></span></div>';
     }).join('');
 
@@ -4402,6 +4444,13 @@ tr.dragging td{opacity:.45}
       if (act === 'print') { NS.switchView('register'); setTimeout(function () { $('#btnPrintReg').click(); }, 120); }
       if (act === 'about') NS.switchView('info');
       if (act === 'today') goToday();
+      if (act === 'lock') {
+        switchView('info');
+        setTimeout(function () {
+          var p = $('#lockPass');
+          if (p) p.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 200);
+      }
       if (act === 'newpatient') newPatient();
       if (act === 'demo') loadDemo();
       if (act === 'install' && window.__installPrompt) { window.__installPrompt.prompt(); window.__installPrompt = null; }
@@ -4507,6 +4556,43 @@ tr.dragging td{opacity:.45}
   function bindLock() {
     var form = $('#lockForm');
     if (!form) return;
+
+    /* Forgot the passphrase? The encrypted register cannot be opened — but a backup file
+       can replace it. This is the only honest exit, so it says exactly what it destroys. */
+    var impBtn = $('#btnLockImport'), impFile = $('#lockImportFile');
+    if (impBtn && impFile) {
+      impBtn.addEventListener('click', function () {
+        var ok = confirm('Start again from a backup file?\n\nThis DELETES the encrypted register on this device. ' +
+          'If you do not have a backup, nothing can be recovered — the passphrase is the only key.');
+        if (ok) impFile.click();
+      });
+      impFile.addEventListener('change', function () {
+        var f = impFile.files && impFile.files[0];
+        if (!f) return;
+        var r = new FileReader();
+        r.onload = function () {
+          var parsed;
+          try { parsed = JSON.parse(r.result); } catch (e) { showLock('That file is not valid JSON.'); return; }
+          var db = NS.validDB(parsed);
+          NS.storage.del('vault').then(function () {
+            return NS.storage.put('db', db);
+          }).then(function () {
+            return NS.storage.put('meta', { locked: false, at: Date.now() });
+          }).then(function () {
+            NS.S.locked = false;
+            NS.S.lockedNow = false;
+            NS.S.lockChoice = 'off';
+            NS.settingsSave();
+            NS.adopt(db);
+            hideLock();
+            start();
+            NS.toast('Restored from the backup. The lock is off.');
+          });
+        };
+        r.readAsText(f);
+        impFile.value = '';
+      });
+    }
     form.addEventListener('submit', function (ev) {
       ev.preventDefault();
       var pass = $('#unlockPass').value;
@@ -4521,6 +4607,35 @@ tr.dragging td{opacity:.45}
       }).then(function () {
         btn.disabled = false; btn.textContent = 'Unlock';
       });
+    });
+  }
+
+  /* The lock is optional, and the choice is made once and remembered — a prompt that
+     nags every launch is the reason people turn features off. */
+  function maybeShowNotice() {
+    var el = $('#lockNotice');
+    if (!el) return;
+    var show = !NS.S.locked && !NS.S.lockChoice && NS.lock.supported() && !NS.isDemo();
+    el.hidden = !show;
+  }
+  function hideNotice() { var el = $('#lockNotice'); if (el) el.hidden = true; }
+
+  function bindNotice() {
+    var on = $('#btnNoticeOn'), off = $('#btnNoticeOff');
+    if (on) on.addEventListener('click', function () {
+      hideNotice();
+      switchView('info');
+      setTimeout(function () {
+        var panel = $('#lockPass');
+        if (panel) { panel.scrollIntoView({ behavior: 'smooth', block: 'center' }); panel.focus(); }
+      }, 200);
+      NS.toast('Set a passphrase below. Nothing else changes.');
+    });
+    if (off) off.addEventListener('click', function () {
+      hideNotice();
+      NS.S.lockChoice = 'off';
+      NS.settingsSave();
+      NS.toast('Left unencrypted. Turn it on any time under About & help → Lock.');
     });
   }
 
@@ -4549,6 +4664,9 @@ tr.dragging td{opacity:.45}
       on.disabled = true; on.textContent = 'Encrypting…';
       NS.lock.enable(a).then(function () {
         $('#lockPass').value = ''; $('#lockPass2').value = '';
+        NS.S.lockChoice = 'on';
+        NS.settingsSave();
+        hideNotice();
         NS.toast('Locked. The passphrase is not stored anywhere.');
         renderLockPanel(); updateStoreInfo();
       }).catch(function (e) {
@@ -4561,6 +4679,8 @@ tr.dragging td{opacity:.45}
       off.disabled = true;
       NS.lock.disable(pass).then(function () {
         $('#lockOffPass').value = '';
+        NS.S.lockChoice = 'off';
+        NS.settingsSave();
         NS.toast('The lock is off; the register is stored unencrypted again.');
         renderLockPanel(); updateStoreInfo();
       }).catch(function (e) {
@@ -4606,6 +4726,7 @@ tr.dragging td{opacity:.45}
       renderLocUI();
       updateStoreInfo();
       renderLockPanel();
+      maybeShowNotice();
       return;
     }
     started = true;
@@ -4631,6 +4752,7 @@ tr.dragging td{opacity:.45}
     bindMenu();
     bindRange();
     bindLockPanel();
+    bindNotice();
     bindKeys();
 
     $$('#railNav button, #tabbar button').forEach(function (b) {
@@ -4732,6 +4854,7 @@ tr.dragging td{opacity:.45}
     NS.renderSearch();
     renderLocUI();
     updateStoreInfo();
+    maybeShowNotice();
 
     var hash = (location.hash || '').replace('#', '');
     switchView(VIEWS.indexOf(hash) !== -1 ? hash : 'dash');

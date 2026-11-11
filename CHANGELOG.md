@@ -1,5 +1,29 @@
 # Changelog
 
+## 3.7.0 — 2026-11-11
+
+The lock stays optional, and saying no is a first-class answer.
+
+### Added
+- **A one-time offer.** On first open the app asks whether to protect the register, with
+  *Turn it on* and *Not now* beside each other, and says that skipping changes nothing else.
+  The answer is remembered on the device and the offer never returns on its own.
+- **A way back, always.** *Lock & privacy* in the ⋯ menu opens the lock panel from anywhere;
+  the panel shows whether the register is encrypted and offers both directions.
+- **An exit if the passphrase is lost.** The lock screen can start again from a backup file.
+  It states exactly what that destroys — the encrypted register on this device — before it
+  asks for the file, because a quiet "reset" would be a lie about what the lock means.
+
+### Fixed
+- **Settings were not being read at boot.** The rewrite that made loading asynchronous
+  dropped the block that restores theme, day filter, column order, target and the lock
+  choice, so every launch came up with the defaults. Found by the new "declining is
+  remembered" check; there is now a reload test for the theme as well.
+- A department bar with a count of zero drew a 2px sliver; an empty track is honest.
+
+### Tests
+- 127 browser checks (was 119).
+
 ## 3.6.0 — 2026-11-11
 
 The heavy tier: the register outgrows `localStorage`, and it can be locked.

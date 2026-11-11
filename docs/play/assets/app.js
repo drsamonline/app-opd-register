@@ -188,6 +188,13 @@
       if (act === 'print') { NS.switchView('register'); setTimeout(function () { $('#btnPrintReg').click(); }, 120); }
       if (act === 'about') NS.switchView('info');
       if (act === 'today') goToday();
+      if (act === 'lock') {
+        switchView('info');
+        setTimeout(function () {
+          var p = $('#lockPass');
+          if (p) p.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 200);
+      }
       if (act === 'newpatient') newPatient();
       if (act === 'demo') loadDemo();
       if (act === 'install' && window.__installPrompt) { window.__installPrompt.prompt(); window.__installPrompt = null; }
@@ -293,6 +300,43 @@
   function bindLock() {
     var form = $('#lockForm');
     if (!form) return;
+
+    /* Forgot the passphrase? The encrypted register cannot be opened — but a backup file
+       can replace it. This is the only honest exit, so it says exactly what it destroys. */
+    var impBtn = $('#btnLockImport'), impFile = $('#lockImportFile');
+    if (impBtn && impFile) {
+      impBtn.addEventListener('click', function () {
+        var ok = confirm('Start again from a backup file?\n\nThis DELETES the encrypted register on this device. ' +
+          'If you do not have a backup, nothing can be recovered — the passphrase is the only key.');
+        if (ok) impFile.click();
+      });
+      impFile.addEventListener('change', function () {
+        var f = impFile.files && impFile.files[0];
+        if (!f) return;
+        var r = new FileReader();
+        r.onload = function () {
+          var parsed;
+          try { parsed = JSON.parse(r.result); } catch (e) { showLock('That file is not valid JSON.'); return; }
+          var db = NS.validDB(parsed);
+          NS.storage.del('vault').then(function () {
+            return NS.storage.put('db', db);
+          }).then(function () {
+            return NS.storage.put('meta', { locked: false, at: Date.now() });
+          }).then(function () {
+            NS.S.locked = false;
+            NS.S.lockedNow = false;
+            NS.S.lockChoice = 'off';
+            NS.settingsSave();
+            NS.adopt(db);
+            hideLock();
+            start();
+            NS.toast('Restored from the backup. The lock is off.');
+          });
+        };
+        r.readAsText(f);
+        impFile.value = '';
+      });
+    }
     form.addEventListener('submit', function (ev) {
       ev.preventDefault();
       var pass = $('#unlockPass').value;
@@ -307,6 +351,35 @@
       }).then(function () {
         btn.disabled = false; btn.textContent = 'Unlock';
       });
+    });
+  }
+
+  /* The lock is optional, and the choice is made once and remembered — a prompt that
+     nags every launch is the reason people turn features off. */
+  function maybeShowNotice() {
+    var el = $('#lockNotice');
+    if (!el) return;
+    var show = !NS.S.locked && !NS.S.lockChoice && NS.lock.supported() && !NS.isDemo();
+    el.hidden = !show;
+  }
+  function hideNotice() { var el = $('#lockNotice'); if (el) el.hidden = true; }
+
+  function bindNotice() {
+    var on = $('#btnNoticeOn'), off = $('#btnNoticeOff');
+    if (on) on.addEventListener('click', function () {
+      hideNotice();
+      switchView('info');
+      setTimeout(function () {
+        var panel = $('#lockPass');
+        if (panel) { panel.scrollIntoView({ behavior: 'smooth', block: 'center' }); panel.focus(); }
+      }, 200);
+      NS.toast('Set a passphrase below. Nothing else changes.');
+    });
+    if (off) off.addEventListener('click', function () {
+      hideNotice();
+      NS.S.lockChoice = 'off';
+      NS.settingsSave();
+      NS.toast('Left unencrypted. Turn it on any time under About & help → Lock.');
     });
   }
 
@@ -335,6 +408,9 @@
       on.disabled = true; on.textContent = 'Encrypting…';
       NS.lock.enable(a).then(function () {
         $('#lockPass').value = ''; $('#lockPass2').value = '';
+        NS.S.lockChoice = 'on';
+        NS.settingsSave();
+        hideNotice();
         NS.toast('Locked. The passphrase is not stored anywhere.');
         renderLockPanel(); updateStoreInfo();
       }).catch(function (e) {
@@ -347,6 +423,8 @@
       off.disabled = true;
       NS.lock.disable(pass).then(function () {
         $('#lockOffPass').value = '';
+        NS.S.lockChoice = 'off';
+        NS.settingsSave();
         NS.toast('The lock is off; the register is stored unencrypted again.');
         renderLockPanel(); updateStoreInfo();
       }).catch(function (e) {
@@ -392,6 +470,7 @@
       renderLocUI();
       updateStoreInfo();
       renderLockPanel();
+      maybeShowNotice();
       return;
     }
     started = true;
@@ -417,6 +496,7 @@
     bindMenu();
     bindRange();
     bindLockPanel();
+    bindNotice();
     bindKeys();
 
     $$('#railNav button, #tabbar button').forEach(function (b) {
@@ -518,6 +598,7 @@
     NS.renderSearch();
     renderLocUI();
     updateStoreInfo();
+    maybeShowNotice();
 
     var hash = (location.hash || '').replace('#', '');
     switchView(VIEWS.indexOf(hash) !== -1 ? hash : 'dash');

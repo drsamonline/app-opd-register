@@ -23,7 +23,10 @@ file wherever your browser puts downloads; what happens to that file is up to yo
   memory while unlocked. Either way, use the operating system's disk encryption and a screen
   lock if the machine is shared.
 - **The passphrase cannot be recovered.** There is no reset link and no backdoor; that is the
-  point. Export a backup before you turn the lock on.
+  point. Export a backup before you turn the lock on. If it is lost, the lock screen can start
+  again from a backup file — which deletes the encrypted register, and says so before it does.
+- **The lock is offered once and can be refused.** Declining is stored on the device (in the
+  settings key, alongside your theme) so the app does not ask again; nothing else changes.
 - **Clearing site data deletes the register.** So does uninstalling the PWA with its data.
   Export a backup weekly; keep it somewhere you would keep the paper register.
 - **The demo** (`?demo=1`) is generated in memory and is never written to storage.

@@ -203,7 +203,7 @@ main{grid-area:main;min-width:0;padding:14px 16px 28px;overflow-x:hidden}
 .bar{display:grid;grid-template-columns:112px minmax(0,1fr) 62px;align-items:center;gap:10px}
 .bar .bl{font-size:12.5px;font-weight:600;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar .bt{height:8px;border-radius:4px;background:var(--line-2);overflow:hidden}
-.bar .bf{display:block;height:100%;border-radius:4px;background:var(--accent);transition:width .35s ease;min-width:2px}
+.bar .bf{display:block;height:100%;border-radius:4px;background:var(--accent);transition:width .35s ease}
 .bar.b2 .bf{background:var(--violet)} .bar.b3 .bf{background:var(--ok)}
 .bar.b4 .bf{background:var(--warn)} .bar.b5 .bf{background:var(--info)}
 .bar.b6 .bf{background:var(--muted-2)}
@@ -774,6 +774,19 @@ tr.dragging td{opacity:.45}
 }
 
 /* the lock screen */
+.notice{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;max-width:1560px;margin:0 auto 12px;
+  padding:11px 14px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);
+  border-radius:var(--r-l);box-shadow:var(--shadow);
+}
+.notice[hidden]{display:none!important}
+.notice .ni{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--accent-l);color:var(--accent-d);font-size:15px;flex:0 0 auto}
+.notice .nt{flex:1;min-width:200px}
+.notice .nt b{display:block;font-size:13px;color:var(--ink)}
+.notice .nt span{display:block;font-size:12px;color:var(--muted);margin-top:1px}
+.notice .na{display:flex;gap:6px;flex-wrap:wrap}
+@media (max-width:560px){.notice .na{width:100%}.notice .na .btn{flex:1}}
+
 .lockwrap{
   position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:20px;
   background:var(--bg);overflow:auto;

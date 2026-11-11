@@ -102,7 +102,7 @@
   /* ---------- state ---------- */
   var DB = null;
   var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {},
-            colOrder: 'default', target: 0, locked: false, lockedNow: false };
+            colOrder: 'default', target: 0, locked: false, lockedNow: false, lockChoice: '' };
   var events = {};
   var saveState = 'saved';
 
@@ -139,7 +139,23 @@
 
   /* Load is asynchronous now: IndexedDB, the migration from localStorage, and the vault
      all resolve before the first render. Returns 'locked' when a passphrase is needed. */
+  /* settings live in localStorage whatever the database engine is — they are tiny, and
+     reading them synchronously keeps the first paint honest */
+  function loadSettings() {
+    try {
+      var st = JSON.parse(localStorage.getItem(KS) || '{}');
+      if (st && typeof st === 'object') {
+        if (st.theme === 'dark' || st.theme === 'light') S.theme = st.theme;
+        if (st.filter) S.filter = st.filter;
+        if (st.colOrder) S.colOrder = st.colOrder;
+        if (typeof st.target === 'number') S.target = st.target;
+        if (st.lockChoice === 'on' || st.lockChoice === 'off') S.lockChoice = st.lockChoice;
+      }
+    } catch (e) {}
+  }
+
   function load() {
+    loadSettings();
     return NS.storage.init().then(function () {
       return NS.storage.get('vault');
     }).then(function (vault) {
@@ -174,7 +190,7 @@
 
   function settingsSave() {
     try {
-      localStorage.setItem(KS, JSON.stringify({ theme: S.theme, filter: S.filter, colOrder: S.colOrder, target: S.target }));
+      localStorage.setItem(KS, JSON.stringify({ theme: S.theme, filter: S.filter, colOrder: S.colOrder, target: S.target, lockChoice: S.lockChoice }));
     } catch (e) {}
   }
 

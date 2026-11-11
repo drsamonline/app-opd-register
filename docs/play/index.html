@@ -35,6 +35,7 @@
   <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></symbol>
   <symbol id="i-dots" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></symbol>
 </defs></svg>
 
@@ -95,6 +96,15 @@
 
   <!-- ============ MAIN ============ -->
   <main id="main">
+    <div class="notice" id="lockNotice" hidden>
+      <div class="ni">⛨</div>
+      <div class="nt"><b>Protect this register with a passphrase?</b>
+        <span>Optional. Turning it on encrypts everything on this device. Skipping it changes nothing else — the register works exactly the same.</span></div>
+      <div class="na">
+        <button class="btn sm primary" id="btnNoticeOn">Turn it on</button>
+        <button class="btn sm ghost" id="btnNoticeOff">Not now</button>
+      </div>
+    </div>
 
     <!-- ---------- DASHBOARD ---------- -->
     <section class="view" id="view-dash">
@@ -451,6 +461,7 @@
   <button data-act="csv"><svg width="15" height="15"><use href="#i-down"/></svg>Export month (CSV)</button>
   <button data-act="print"><svg width="15" height="15"><use href="#i-print"/></svg>Print register</button>
   <hr/>
+  <button data-act="lock"><svg width="15" height="15"><use href="#i-lock"/></svg>Lock &amp; privacy</button>
   <button data-act="today"><svg width="15" height="15"><use href="#i-reg"/></svg>Go to today</button>
   <button data-act="install" id="miInstall" style="display:none"><svg width="15" height="15"><use href="#i-check"/></svg>Install app</button>
   <button data-act="demo"><svg width="15" height="15"><use href="#i-copy"/></svg>Load demo data</button>
@@ -503,6 +514,8 @@
     </div>
     <button class="btn primary block" id="btnUnlock" type="submit">Unlock</button>
     <p class="lerr" id="lockErr" hidden></p>
+    <button class="btn ghost block" id="btnLockImport" type="button" style="min-height:36px;font-size:12.5px">I have a backup file — start from that</button>
+    <input type="file" id="lockImportFile" accept=".json,application/json" hidden/>
   </form>
 </div>
 

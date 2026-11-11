@@ -40,6 +40,7 @@ Screens at both widths: [`docs/assets/app-desktop.png`](docs/assets/app-desktop.
 [`docs/assets/app-followups.png`](docs/assets/app-followups.png) (follow-ups due, by department),
 [`docs/assets/app-search.png`](docs/assets/app-search.png) (the patient list and its sort),
 [`docs/assets/app-columns.png`](docs/assets/app-columns.png) (Treatment-before-Diagnosis),
+[`docs/assets/app-notice.png`](docs/assets/app-notice.png) (the one-time offer),
 [`docs/assets/app-lock.png`](docs/assets/app-lock.png) (the lock screen),
 [`docs/assets/app-settings.png`](docs/assets/app-settings.png) (display, lock, storage),
 [`docs/assets/app-digest.png`](docs/assets/app-digest.png) (the printable digest) and
@@ -128,7 +129,14 @@ No account, no analytics, no cookie, no network call. Clearing site data erases 
 **export a backup weekly** — the import restores everything, including the location names.
 The file format is plain JSON and is compatible with the earlier v2 release.
 
-**Optional passphrase lock.** *About & help → Lock* encrypts the whole register with
+**Optional passphrase lock — offered once, never nagged.** On first open the app asks
+whether to protect the register, with *Turn it on* and *Not now* side by side. Declining is
+remembered on that device and changes nothing else; the offer never comes back on its own,
+and the way to change your mind is always in the ⋯ menu (*Lock & privacy*) and in
+*About & help → Lock*. Forgot the passphrase? The lock screen offers to start again from a
+backup file, and says plainly that the encrypted register is deleted if you do.
+
+Turning the lock on encrypts the whole register with
 AES-GCM-256, keyed from your passphrase through PBKDF2-HMAC-SHA256 (310,000 iterations, a
 random 16-byte salt). The plain copy is deleted only after the encrypted write succeeds, and
 the key is dropped from memory when you lock. A lost passphrase means a lost register — there
