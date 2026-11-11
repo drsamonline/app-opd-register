@@ -15,6 +15,7 @@
         loc: c.loc, date: c.date, i: c.i, opd: r.opd || '', name: r.name || '',
         age: r.age || '', sex: r.sex || '', dept: r.department || '',
         dx: r.diagnosis || '', tx: r.treatment || '', addr: r.address || '', ct: r.caseType || '',
+        phone: r.phone || '', fu: r.followUp || '',
         hay: [r.opd, r.name, r.age, r.department, r.diagnosis, r.treatment, r.address].join(' ').toLowerCase()
       };
     }).reverse();
@@ -80,6 +81,33 @@
     }).join('');
   }
 
+  /* the list as it is on screen — filtered, sorted, all locations if ticked */
+  function exportList() {
+    var q = ($('#qBig').value || '').trim().toLowerCase();
+    var allLoc = $('#searchAllLoc').checked;
+    var rows = index(allLoc);
+    var terms = q.split(/\s+/).filter(Boolean);
+    var hits = terms.length ? rows.filter(function (r) { return terms.every(function (t) { return r.hay.indexOf(t) !== -1; }); }) : rows;
+    if (sortMode === 'old') hits = hits.slice().reverse();
+    else if (sortMode === 'name') hits = hits.slice().sort(function (a, b) { return (a.name || '\uffff').localeCompare(b.name || '\uffff'); });
+    else if (sortMode === 'opd') hits = hits.slice().sort(function (a, b) {
+      var an = parseInt(a.opd, 10), bn = parseInt(b.opd, 10);
+      if (!isNaN(an) && !isNaN(bn) && an !== bn) return an - bn;
+      return String(a.opd).localeCompare(String(b.opd));
+    });
+    var head = ['Date', 'Location', 'OPD no.', 'Case', 'Department', 'Name', 'Age', 'Sex', 'Mobile', 'Address', 'Diagnosis', 'Treatment', 'Follow-up'];
+    var lines = [head.join(',')];
+    hits.forEach(function (r) {
+      lines.push([r.date, r.loc, r.opd, r.ct, r.dept, r.name, r.age, r.sex, r.phone, r.addr, r.dx, r.tx, r.fu]
+        .map(function (v) {
+          var t = String(v == null ? '' : v);
+          return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+        }).join(','));
+    });
+    NS.download('opd-patients-' + NS.tKey() + '.csv', '\ufeff' + lines.join('\r\n'), 'text/csv;charset=utf-8');
+    NS.toast(hits.length + ' patient' + (hits.length === 1 ? '' : 's') + ' exported.');
+  }
+
   function open(hit) {
     var loc = hit.dataset.loc, date = hit.dataset.date, i = +hit.dataset.i;
     if (loc !== NS.db.current) {
@@ -109,6 +137,8 @@
     }
     var chk = $('#searchAllLoc');
     if (chk) chk.addEventListener('change', render);
+    var el = $('#btnExportList');
+    if (el) el.addEventListener('click', exportList);
     var srt = $('#searchSort');
     if (srt) srt.addEventListener('change', function () { sortMode = srt.value; render(); });
     var box = $('#hits');
@@ -128,5 +158,6 @@
   }
 
   NS.renderSearch = render;
+  NS.exportList = exportList;
   NS.bindSearch = bind;
 })(window.OPD = window.OPD || {});

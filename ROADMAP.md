@@ -18,6 +18,9 @@ prescription from a row · follow-ups by department · "last seen" gaps.
 **3.4.0** — undo a deleted location · search inside one day · digest week totals and a
 missing-diagnosis note · patient-list sort · the highlight-escaping fix.
 
+**3.5.0** — drag a patient to another day · column-order presets · daily target line ·
+missing-diagnosis mode · export the patient list · undo a day-status change.
+
 ## Next (small, high value)
 
 | Item | Why | Cost |

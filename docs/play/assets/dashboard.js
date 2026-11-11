@@ -97,8 +97,13 @@
     /* trend */
     var tr = $('#dTrend');
     if (tr) {
-      var maxT = Math.max(1, Math.max.apply(null, a.daily.map(function (x) { return x.n; })));
-      tr.innerHTML = '<div class="trendwrap">' + a.daily.map(function (x) {
+      var target0 = Number(NS.S.target) || 0;
+      /* scale to the target as well, or a 30/day line sits pinned to the top edge */
+      var maxT = Math.max(1, Math.max.apply(null, a.daily.map(function (x) { return x.n; })), target0) * 1.12;
+      var target = Number(NS.S.target) || 0;
+      tr.innerHTML = '<div class="trendwrap">' +
+        (target > 0 ? '<i class="tline" style="bottom:' + Math.round(Math.min(1, target / maxT) * 100) + '%"><span>' + target + '/day</span></i>' : '') +
+        a.daily.map(function (x) {
         var h = Math.round(x.n / maxT * 100);
         var cls = x.n === 0 ? 'z' : (x.n === maxT ? 'hi' : '');
         var dow = new Date(x.k + 'T00:00:00').getDay();
@@ -196,6 +201,7 @@
       NS.S.rowFilter = '';
       NS.S.onlyDay = '';
       NS.switchView('register');
+      if (NS.showMissing) NS.showMissing();
     });
     var b = $('#btnDashRegister');
     if (b) b.addEventListener('click', function () { NS.switchView('register'); });

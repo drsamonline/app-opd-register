@@ -1,5 +1,30 @@
 # Changelog
 
+## 3.5.0 — 2026-11-11
+
+The last of the small ones, in one pass — and the one medium one: a patient can be dragged
+to the right day.
+
+### Added
+- **Drag a patient to another day** — grab the row number, drop it on a day header. The move
+  is undoable; the row keeps every field.
+- **Column order** — Default, Treatment-first, or Name-first, from *About & help → Display*.
+  The register's cells are now generated from one field map instead of being written out by
+  hand, which is what makes an order a setting rather than a rewrite.
+- **Daily target** — a number in Display draws a dashed line across the dashboard trend and
+  scales the chart to it, so "we plan 30 a day" is a line, not a guess.
+- **Missing-diagnosis mode** — the reading panel's count now opens the register showing only
+  the days that hold a patient with no diagnosis or treatment, with a chip to get back.
+- **Export the patient list** — CSV of the list as it stands: filtered, sorted, all locations
+  if ticked.
+- **Undo a day-status change** — the last destructive action that had no undo.
+
+### Changed
+- The trend scales to the target with 12% headroom, so the line is never pinned to the edge.
+
+### Tests
+- 101 node checks and 105 browser checks (was 95).
+
 ## 3.4.0 — 2026-11-11
 
 Six small things in one pass, all of them answers to "where did that entry go".

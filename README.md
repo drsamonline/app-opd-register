@@ -39,6 +39,7 @@ Screens at both widths: [`docs/assets/app-desktop.png`](docs/assets/app-desktop.
 [`docs/assets/app-slip.png`](docs/assets/app-slip.png) (the printed visit slip),
 [`docs/assets/app-followups.png`](docs/assets/app-followups.png) (follow-ups due, by department),
 [`docs/assets/app-search.png`](docs/assets/app-search.png) (the patient list and its sort),
+[`docs/assets/app-columns.png`](docs/assets/app-columns.png) (Treatment-before-Diagnosis),
 [`docs/assets/app-digest.png`](docs/assets/app-digest.png) (the printable digest) and
 [`docs/assets/app-stats.png`](docs/assets/app-stats.png). Badges are drawn locally by
 `scripts/badges.py`; the icon set by `scripts/icons.py`. Nothing here is fetched from a
@@ -75,6 +76,12 @@ prescription into today's row. **Print slip** turns those visits into half a pag
 file or the patient. A row can also repeat the last prescription with one click. Clicking
 a row number opens it; the OPD field offers the **next number in your series** (offered, never
 applied) and the department field offers the departments this location actually uses.
+
+A patient entered on the wrong day can be **dragged** to the right one by its row number.
+The register's **column order** is a setting (Treatment first, Name first, or default), the
+dashboard can draw a **daily target** across the trend, and the reading panel counts rows
+saved **without a diagnosis** — tap it to see only those days. The patient list exports to
+CSV as it stands on screen, filtered and sorted.
 
 Each patient row also carries a **mobile number** and a **follow-up date** — neither of them
 makes a row a patient, so a stray date can never inflate a total. Rows duplicate with

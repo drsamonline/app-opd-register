@@ -101,7 +101,8 @@
 
   /* ---------- state ---------- */
   var DB = null;
-  var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {} };
+  var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {},
+            colOrder: 'default', target: 0 };
   var events = {};
   var saveState = 'saved';
 
@@ -146,12 +147,16 @@
       if (st && typeof st === 'object') {
         if (st.theme === 'dark' || st.theme === 'light') S.theme = st.theme;
         if (st.filter) S.filter = st.filter;
+        if (st.colOrder) S.colOrder = st.colOrder;
+        if (typeof st.target === 'number') S.target = st.target;
       }
     } catch (e) {}
   }
 
   function settingsSave() {
-    try { localStorage.setItem(KS, JSON.stringify({ theme: S.theme, filter: S.filter })); } catch (e) {}
+    try {
+      localStorage.setItem(KS, JSON.stringify({ theme: S.theme, filter: S.filter, colOrder: S.colOrder, target: S.target }));
+    } catch (e) {}
   }
 
   function prune() {
@@ -353,6 +358,13 @@
       });
     });
     return { n: n, days: days };
+  }
+
+  /* the days of a month that hold a patient with no diagnosis and no treatment */
+  function missingDays(mk) {
+    var out = {};
+    missingDiagnosis(mk).days.forEach(function (k) { out[k] = 1; });
+    return out;
   }
 
   /* "3 months ago" — the interval matters as much as the visit */
@@ -577,7 +589,7 @@
   NS.hasD = hasD; NS.blankRows = blankRows; NS.ageYears = ageYears; NS.deptK = deptK; NS.debounce = debounce;
   NS.normaliseAge = normaliseAge; NS.dueFollowUps = dueFollowUps; NS.deptHistory = deptHistory; NS.DF_ALL = DF_ALL;
   NS.patientHistory = patientHistory; NS.nextOpd = nextOpd; NS.ageLabel = ageLabel; NS.humanGap = humanGap;
-  NS.missingDiagnosis = missingDiagnosis;
+  NS.missingDiagnosis = missingDiagnosis; NS.missingDays = missingDays;
   NS.ER = ER; NS.DF = DF; NS.DROWS = DROWS; NS.ST = ST; NS.SO = SO;
   NS.S = S;
   Object.defineProperty(NS, 'db', { get: function () { return DB; } });

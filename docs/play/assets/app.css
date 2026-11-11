@@ -758,6 +758,21 @@ table.st td.z{color:var(--muted-2)}
   .tbar{max-width:none}
 }
 
+/* dragging a patient to another day */
+td.sr[draggable]{cursor:grab}
+td.sr[draggable]:active{cursor:grabbing}
+tr.dragging td{opacity:.45}
+.dayhead.dragover{background:var(--accent-l);box-shadow:inset 0 0 0 2px var(--accent)}
+.dayhead.dragover .dt{color:var(--accent-d)}
+
+/* the daily target on the trend */
+.trendwrap{position:relative}
+.tline{position:absolute;left:0;right:0;height:0;border-top:1.5px dashed var(--warn);pointer-events:none;z-index:2}
+.tline span{
+  position:absolute;right:0;top:-9px;font-size:9.5px;font-weight:800;color:var(--warn);
+  background:var(--panel);padding:0 3px;border-radius:3px;font-variant-numeric:tabular-nums;
+}
+
 /* ---------------- print ---------------- */
 @media print{
   :root{--bg:#fff;--panel:#fff;--line:#bbb;--line-2:#ddd}

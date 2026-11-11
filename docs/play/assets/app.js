@@ -322,6 +322,27 @@
     $('#btnDelLoc').addEventListener('click', deleteLocation);
     $('#btnExportJson').addEventListener('click', NS.exportJson);
     $('#btnExportCsvAll').addEventListener('click', function () { NS.exportMonthCsv(NS.S.curM); });
+    var sc = $('#setCols'), st = $('#setTarget');
+    if (sc) {
+      sc.value = NS.S.colOrder;
+      sc.addEventListener('change', function () {
+        NS.S.colOrder = sc.value;
+        NS.settingsSave();
+        NS.renderRegister();
+        NS.toast('Column order saved.');
+      });
+    }
+    if (st) {
+      st.value = NS.S.target || '';
+      st.addEventListener('change', function () {
+        var v = parseInt(st.value, 10);
+        NS.S.target = isNaN(v) || v < 0 ? 0 : Math.min(200, v);
+        st.value = NS.S.target || '';
+        NS.settingsSave();
+        NS.renderDashboard();
+        NS.toast(NS.S.target ? 'Target: ' + NS.S.target + ' patients a day.' : 'Target cleared.');
+      });
+    }
     $('#fileImport').addEventListener('change', function (ev) {
       var f = ev.target.files && ev.target.files[0];
       if (!f) return;

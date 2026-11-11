@@ -8,6 +8,7 @@
   S.scope = 'month';
   S.rowFilter = '';
   S.onlyDay = '';
+  S.missingOnly = false;
   function narrow() { return mqNarrow.matches; }
 
   /* ================= CALENDAR ================= */
@@ -68,31 +69,76 @@
   }
 
   /* ================= ROW MARKUP (desktop) ================= */
-  var COLS = [34, 86, 52, 118, 140, 46, 44, 92, 120, 150, 152, 80, 46];
+  /* One map of field -> width and header, plus an order per preset. The register used to
+     write its cells out by hand, so "Treatment before Diagnosis" was a rewrite rather than
+     a setting. */
+  var COLW = { sr: 34, opd: 86, caseType: 52, department: 118, name: 140, age: 46, sex: 44,
+               phone: 92, address: 120, diagnosis: 150, treatment: 152, followUp: 80, acts: 46 };
+  var COLHEAD = { opd: 'OPD no.', caseType: 'Case', department: 'Department', name: 'Name',
+                  age: 'Age', sex: 'Sex', phone: 'Mobile', address: 'Address',
+                  diagnosis: 'Diagnosis', treatment: 'Treatment', followUp: 'Follow-up' };
+  var ORDERS = {
+    default: ['opd', 'caseType', 'department', 'name', 'age', 'sex', 'phone', 'address', 'diagnosis', 'treatment', 'followUp'],
+    treat:   ['opd', 'caseType', 'department', 'name', 'age', 'sex', 'phone', 'address', 'treatment', 'diagnosis', 'followUp'],
+    name:    ['name', 'opd', 'age', 'sex', 'department', 'diagnosis', 'treatment', 'followUp', 'phone', 'address', 'caseType']
+  };
+  function order() { return ORDERS[S.colOrder] || ORDERS.default; }
+
   function sel(v, cur) { return v === cur ? ' selected' : ''; }
 
+  var CELL = {
+    opd: function (r) {
+      return '<td><input class="cellin num" data-f="opd" list="opdList" autocomplete="off" placeholder="OPD no." value="' + esc(r.opd) + '"></td>';
+    },
+    caseType: function (r) {
+      return '<td><select class="cellin" data-f="caseType"><option value="New"' + sel('New', r.caseType) + '>New</option>' +
+        '<option value="Old"' + sel('Old', r.caseType) + '>Old</option></select></td>';
+    },
+    department: function (r) {
+      return '<td><input class="cellin" data-f="department" list="deptList" autocomplete="off" placeholder="Dept." value="' + esc(r.department) + '"></td>';
+    },
+    name: function (r) {
+      return '<td><input class="cellin" data-f="name" autocomplete="off" placeholder="Patient name" value="' + esc(r.name) + '"></td>';
+    },
+    age: function (r) {
+      return '<td><input class="cellin num" data-f="age" inputmode="text" autocomplete="off" placeholder="Age" value="' + esc(r.age) + '"></td>';
+    },
+    sex: function (r) {
+      return '<td><select class="cellin" data-f="sex">' + ['', 'M', 'F', 'O'].map(function (v) {
+        return '<option value="' + v + '"' + sel(v, r.sex) + '>' + (v || '—') + '</option>';
+      }).join('') + '</select></td>';
+    },
+    phone: function (r) {
+      return '<td><input class="cellin num" data-f="phone" inputmode="tel" autocomplete="off" placeholder="Mobile" value="' + esc(r.phone) + '"></td>';
+    },
+    address: function (r) {
+      return '<td><input class="cellin" data-f="address" autocomplete="off" placeholder="Address" value="' + esc(r.address) + '"></td>';
+    },
+    diagnosis: function (r) {
+      return '<td><input class="cellin" data-f="diagnosis" autocomplete="off" placeholder="Diagnosis" value="' + esc(r.diagnosis) + '"></td>';
+    },
+    treatment: function (r) {
+      return '<td><input class="cellin" data-f="treatment" autocomplete="off" placeholder="Treatment" value="' + esc(r.treatment) + '"></td>';
+    },
+    followUp: function (r) {
+      return '<td><input class="cellin num" data-f="followUp" type="date" value="' + esc(r.followUp) + '" title="Follow-up date"></td>';
+    }
+  };
+
   function rowHTML(r, i) {
-    return '<td class="sr num">' + (i + 1) + '</td>' +
-      '<td><input class="cellin num" data-f="opd" list="opdList" autocomplete="off" placeholder="OPD no." value="' + esc(r.opd) + '"></td>' +
-      '<td><select class="cellin" data-f="caseType"><option value="New"' + sel('New', r.caseType) + '>New</option><option value="Old"' + sel('Old', r.caseType) + '>Old</option></select></td>' +
-      '<td><input class="cellin" data-f="department" list="deptList" autocomplete="off" placeholder="Dept." value="' + esc(r.department) + '"></td>' +
-      '<td><input class="cellin" data-f="name" autocomplete="off" placeholder="Patient name" value="' + esc(r.name) + '"></td>' +
-      '<td><input class="cellin num" data-f="age" inputmode="text" autocomplete="off" placeholder="Age" value="' + esc(r.age) + '"></td>' +
-      '<td><select class="cellin" data-f="sex">' + ['', 'M', 'F', 'O'].map(function (s) {
-        return '<option value="' + s + '"' + sel(s, r.sex) + '>' + (s || '—') + '</option>';
-      }).join('') + '</select></td>' +
-      '<td><input class="cellin num" data-f="phone" inputmode="tel" autocomplete="off" placeholder="Mobile" value="' + esc(r.phone) + '"></td>' +
-      '<td><input class="cellin" data-f="address" autocomplete="off" placeholder="Address" value="' + esc(r.address) + '"></td>' +
-      '<td><input class="cellin" data-f="diagnosis" autocomplete="off" placeholder="Diagnosis" value="' + esc(r.diagnosis) + '"></td>' +
-      '<td><input class="cellin" data-f="treatment" autocomplete="off" placeholder="Treatment" value="' + esc(r.treatment) + '"></td>' +
-      '<td><input class="cellin num" data-f="followUp" type="date" value="' + esc(r.followUp) + '" title="Follow-up date"></td>' +
+    var cells = order().map(function (f) { return CELL[f](r); }).join('');
+    return '<td class="sr num" draggable="true" data-drag="' + i + '" title="Drag this row to another day, or click to open the patient">' + (i + 1) + '</td>' +
+      cells +
       '<td class="acts"><button class="rowrep" data-rep="' + i + '" title="Repeat the last prescription for this OPD no." aria-label="Repeat last prescription">&#8635;</button>' +
       '<button class="rowdel" data-del="' + i + '" title="Delete row" aria-label="Delete row">&times;</button></td>';
   }
 
   function tableHTML(k, list) {
-    var cg = '<colgroup>' + COLS.map(function (w) { return '<col style="width:' + w + 'px">'; }).join('') + '</colgroup>';
-    var head = '<thead><tr><th>#</th><th>OPD no.</th><th>Case</th><th>Department</th><th>Name</th><th>Age</th><th>Sex</th><th>Mobile</th><th>Address</th><th>Diagnosis</th><th>Treatment</th><th>Follow-up</th><th></th></tr></thead>';
+    var cols = order();
+    var cg = '<colgroup><col style="width:' + COLW.sr + 'px">' +
+      cols.map(function (f) { return '<col style="width:' + COLW[f] + 'px">'; }).join('') +
+      '<col style="width:' + COLW.acts + 'px"></colgroup>';
+    var head = '<thead><tr><th>#</th>' + cols.map(function (f) { return '<th>' + COLHEAD[f] + '</th>'; }).join('') + '<th></th></tr></thead>';
     var body = list.map(function (x) {
       return '<tr class="drow" data-date="' + k + '" data-idx="' + x.i + '">' + rowHTML(x.r, x.i) + '</tr>';
     }).join('');
@@ -187,6 +233,14 @@
   function visibleDays() {
     var out = [];
     if (S.onlyDay) return [S.onlyDay];
+    if (S.missingOnly) {
+      var miss = NS.missingDays(S.curM);
+      for (var md = 1, mn = NS.dim(S.curM); md <= mn; md++) {
+        var mk2 = S.curM + '-' + pad(md);
+        if (miss[mk2]) out.push(mk2);
+      }
+      return out;
+    }
     if (S.scope === 'week') {
       out = weekDays(S.curD || NS.tKey());
       if (S.filter === 'data') out = out.filter(function (k) { return NS.cnt(k) > 0; });
@@ -271,9 +325,13 @@
     }
     var only = $('#onlyDay');
     if (only) {
-      only.hidden = !S.onlyDay;
-      only.innerHTML = S.onlyDay ? '<button class="chip" data-clearday="1" title="Show every day again">Only ' +
-        esc(NS.fmtDay(S.onlyDay)) + ' <b style="margin-left:4px">&times;</b></button>' : '';
+      var chips = '';
+      if (S.onlyDay) chips += '<button class="chip" data-clearday="1" title="Show every day again">Only ' +
+        esc(NS.fmtDay(S.onlyDay)) + ' <b style="margin-left:4px">&times;</b></button>';
+      if (S.missingOnly) chips += '<button class="chip" data-clearmiss="1" style="border-color:var(--warn);color:var(--warn)" ' +
+        'title="Show every day again">No diagnosis <b style="margin-left:4px">&times;</b></button>';
+      only.hidden = !chips;
+      only.innerHTML = chips;
     }
     var wk = S.scope === 'week';
     var wl = $('#weekLbl'), wp = $('#btnWeekPrev'), wn = $('#btnWeekNext');
@@ -766,11 +824,21 @@
       var el = ev.target;
       if (el.dataset && el.dataset.dstat) {
         var k = el.dataset.dstat;
+        var before = NS.ensureD(k).status || 'working';
         NS.ensureD(k).status = el.value;
         el.className = 'selx st-' + el.value;
         var cell = document.querySelector('.cell[data-date="' + k + '"]');
         if (cell) { cell.className = cell.className.replace(/st-\w+/g, '').trim() + ' st-' + el.value; }
-        NS.saveNow(); renderCal(); return;
+        NS.saveNow(); renderCal();
+        if (before !== el.value) {
+          (function (kk, prev, next) {
+            NS.toast(NS.fmtDay(kk) + ' → ' + NS.ST[next].l + '.', 'Undo', function () {
+              NS.ensureD(kk).status = prev;
+              NS.saveNow(); renderAll();
+            });
+          })(k, before, el.value);
+        }
+        return;
       }
       if (!el.dataset || !el.dataset.f) return;
       var tr = el.closest('tr[data-date]');
@@ -803,6 +871,7 @@
         renderRegister();
         NS.toast('Showing ' + NS.fmtDay(S.onlyDay) + ' only.', 'All days', function () {
           S.onlyDay = '';
+  S.missingOnly = false;
           var r2 = $('#rowFilter'); if (r2) r2.placeholder = 'Filter rows';
           renderRegister();
         });
@@ -857,6 +926,8 @@
     });
 
     /* keyboard inside the table: Enter / Ctrl+Enter / Alt+arrows */
+    bindDrag();
+
     host.addEventListener('keydown', function (ev) {
       var el = ev.target;
       if (!el.dataset || !el.dataset.f) return;
@@ -887,9 +958,14 @@
 
     var od = $('#onlyDay');
     if (od) od.addEventListener('click', function (ev) {
-      if (!ev.target.closest('[data-clearday]')) return;
-      S.onlyDay = '';
-      var rf2 = $('#rowFilter'); if (rf2) { rf2.placeholder = 'Filter rows'; }
+      var miss = ev.target.closest('[data-clearmiss]');
+      var one = ev.target.closest('[data-clearday]');
+      if (!miss && !one) return;
+      if (miss) S.missingOnly = false;
+      if (one) {
+        S.onlyDay = '';
+        var rf2 = $('#rowFilter'); if (rf2) rf2.placeholder = 'Filter rows';
+      }
       renderRegister();
     });
 
@@ -987,6 +1063,76 @@
     NS.emit('render');
   }
 
+  /* ---------- moving a patient to another day ---------- */
+  var dragCtx = null;
+
+  function moveRow(fromKey, fromIdx, toKey) {
+    if (!fromKey || fromKey === toKey) return false;
+    if (isNaN(fromIdx) || fromIdx < 0) return false;
+    if (isNaN(fromIdx) || fromIdx < 0) return false;
+    var src = NS.ensureD(fromKey), dst = NS.ensureD(toKey);
+    var row = src.rows[fromIdx];
+    if (!row || !NS.hasD(row)) { NS.toast('That row is empty.'); return false; }
+    var snapFrom = NS.daySnapshot(fromKey), snapTo = NS.daySnapshot(toKey);
+    var copy = Object.assign({}, row);
+    src.rows.splice(fromIdx, 1);
+    while (src.rows.length < NS.DROWS) src.rows.push(Object.assign({}, NS.ER));
+    var slot = dst.rows.findIndex(function (r) { return !NS.hasD(r); });
+    if (slot === -1) { dst.rows.push(copy); } else { dst.rows[slot] = copy; }
+    S.open[toKey] = true;
+    NS.saveNow(); renderAll();
+    NS.toast('Moved ' + (copy.name || 'the patient') + ' to ' + NS.fmtDay(toKey) + '.', 'Undo', function () {
+      NS.restoreDay(fromKey, snapFrom);
+      NS.restoreDay(toKey, snapTo);
+      renderAll();
+      NS.toast('Move undone.');
+    });
+    return true;
+  }
+
+  function bindDrag() {
+    var host = $('#days');
+    host.addEventListener('dragstart', function (ev) {
+      var handle = ev.target.closest ? ev.target.closest('td.sr[draggable]') : null;
+      if (!handle) return;
+      var tr = handle.closest('tr[data-date]');
+      if (!tr) return;
+      /* data-drag lives on the handle (the row-number cell), not on the <tr> */
+      dragCtx = { k: tr.dataset.date, i: +handle.dataset.drag };
+      tr.classList.add('dragging');
+      if (ev.dataTransfer) {
+        ev.dataTransfer.effectAllowed = 'move';
+        try { ev.dataTransfer.setData('text/plain', dragCtx.k + ':' + dragCtx.i); } catch (e) {}
+      }
+    });
+    host.addEventListener('dragend', function () {
+      dragCtx = null;
+      $$('.dragging').forEach(function (el) { el.classList.remove('dragging'); });
+      $$('.dayhead.dragover').forEach(function (el) { el.classList.remove('dragover'); });
+    });
+    host.addEventListener('dragover', function (ev) {
+      var head = ev.target.closest ? ev.target.closest('.dayhead[data-date]') : null;
+      if (!head || !dragCtx) return;
+      if (head.dataset.date === dragCtx.k) return;
+      ev.preventDefault();
+      if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+      $$('.dayhead.dragover').forEach(function (el) { if (el !== head) el.classList.remove('dragover'); });
+      head.classList.add('dragover');
+    });
+    host.addEventListener('dragleave', function (ev) {
+      var head = ev.target.closest ? ev.target.closest('.dayhead[data-date]') : null;
+      if (head) head.classList.remove('dragover');
+    });
+    host.addEventListener('drop', function (ev) {
+      var head = ev.target.closest ? ev.target.closest('.dayhead[data-date]') : null;
+      if (!head || !dragCtx) return;
+      ev.preventDefault();
+      head.classList.remove('dragover');
+      moveRow(dragCtx.k, dragCtx.i, head.dataset.date);
+      dragCtx = null;
+    });
+  }
+
   /* Ctrl+D: duplicate whichever patient is in front of the user */
   function duplicateCurrent() {
     if ($('#sheet').classList.contains('on')) {
@@ -1003,7 +1149,13 @@
 
   NS.duplicateCurrent = duplicateCurrent;
   NS.shiftWeek = shiftWeek;
+  NS.showMissing = function () {
+    S.missingOnly = true; S.onlyDay = ''; S.scope = 'month'; S.rowFilter = '';
+    $$('#regScope button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.scope === 'month')); });
+    renderRegister();
+  };
   NS.printSlip = printSlip;
+  NS.moveRow = moveRow;
   NS.repeatLast = repeatLast;
   NS.weekGridHTML = weekGridHTML;
   NS.weekDays = weekDays;
