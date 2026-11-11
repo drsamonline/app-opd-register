@@ -213,6 +213,13 @@ ok('missing diagnosis: a diagnosed row is not counted', (function () {
   return NS.missingDiagnosis().n === before;
 })());
 
+/* ---------- the shape of a spreadsheet ---------- */
+eq('shape: the same header maps to the same key',
+   NS.csvShape(['Date', 'OPD No', 'Name'].join('|')),
+   NS.csvShape(['date', 'opd no', 'name'].join('|')));
+ok('shape: a different header is a different key',
+   NS.csvShape('Date|OPD|Name') !== NS.csvShape('Date|Name|Age'));
+
 /* ---------- how long ago ---------- */
 const dayMs = 864e5;
 const ago = n => { const d = new Date(Date.now() - n * dayMs); return d.getFullYear() + '-' + NS.pad(d.getMonth() + 1) + '-' + NS.pad(d.getDate()); };

@@ -38,6 +38,9 @@ the printed week.
 **3.11.0** — CSV import with a column mapper · named merge conflicts with a choice ·
 "added by the last import" · checksummed backups.
 
+**3.12.0** — a conflict queue resolved per field · passphrase-signed backups · the month CSV
+in the register's own order · CSV mappings remembered per file shape.
+
 ## Next (small, high value)
 
 | Item | Why | Cost |

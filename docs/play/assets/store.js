@@ -103,6 +103,7 @@
   var DB = null;
   var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {},
             colOrder: 'default', colOrderByLoc: {}, lockIdle: 10, target: 0, monthTarget: 0, lastImport: null,
+            csvMaps: {},
             locked: false, lockedNow: false, lockChoice: '' };
   var events = {};
   var saveState = 'saved';
@@ -152,6 +153,7 @@
         if (st.colOrderByLoc && typeof st.colOrderByLoc === 'object') S.colOrderByLoc = st.colOrderByLoc;
         if (typeof st.lockIdle === 'number') S.lockIdle = st.lockIdle;
         if (st.lastImport) S.lastImport = st.lastImport;
+        if (st.csvMaps && typeof st.csvMaps === 'object') S.csvMaps = st.csvMaps;
         if (typeof st.target === 'number') S.target = st.target;
         if (typeof st.monthTarget === 'number') S.monthTarget = st.monthTarget;
         if (st.lockChoice === 'on' || st.lockChoice === 'off') S.lockChoice = st.lockChoice;
@@ -198,7 +200,7 @@
       localStorage.setItem(KS, JSON.stringify({
         theme: S.theme, filter: S.filter, colOrder: S.colOrder, colOrderByLoc: S.colOrderByLoc,
         lockIdle: S.lockIdle, target: S.target, monthTarget: S.monthTarget,
-        lockChoice: S.lockChoice, lastImport: S.lastImport
+        lockChoice: S.lockChoice, lastImport: S.lastImport, csvMaps: S.csvMaps
       }));
     } catch (e) {}
   }
@@ -539,20 +541,37 @@
   function exportJson() {
     saveNow();
     var body = JSON.stringify(DB);
+    var canSign = !!(NS.lock && NS.lock.hasSigner && NS.lock.hasSigner());
     sha256Hex(body).then(function (sum) {
-      var payload = { app: 'opd-register', kind: 'backup', v: 1, exported: new Date().toISOString(), sha256: sum, data: DB };
-      download('opd-register-backup-' + todayKey() + '.json', JSON.stringify(payload, null, 2), 'application/json');
-      toast(sum ? 'Backup saved, with a checksum.' : 'Backup saved — every location, every month.');
+      return (canSign ? NS.lock.sign(body) : Promise.resolve('')).then(function (mac) {
+        var payload = {
+          app: 'opd-register', kind: 'backup', v: 1,
+          exported: new Date().toISOString(), sha256: sum, hmac: mac || undefined, data: DB
+        };
+        download('opd-register-backup-' + todayKey() + '.json', JSON.stringify(payload, null, 2), 'application/json');
+        toast(mac ? 'Backup saved, signed with your passphrase.'
+          : (sum ? 'Backup saved, with a checksum.' : 'Backup saved — every location, every month.'));
+      });
     });
   }
 
   /* verify a wrapped backup; resolve with the database inside it */
   function openBackup(parsed) {
     if (!parsed || parsed.kind !== 'backup' || !parsed.data) return Promise.resolve(parsed);
-    if (!parsed.sha256) return Promise.resolve(parsed.data);
-    return sha256Hex(JSON.stringify(parsed.data)).then(function (sum) {
-      if (sum && sum !== parsed.sha256) throw new Error('This backup is damaged: its checksum does not match. Nothing was imported.');
-      return parsed.data;
+    var body = JSON.stringify(parsed.data);
+    return sha256Hex(body).then(function (sum) {
+      if (parsed.sha256 && sum && sum !== parsed.sha256) {
+        throw new Error('This backup is damaged: its checksum does not match. Nothing was imported.');
+      }
+      if (!parsed.hmac) return parsed.data;
+      /* signed: the signature proves it came from someone holding the passphrase */
+      if (!(NS.lock && NS.lock.hasSigner && NS.lock.hasSigner())) {
+        throw new Error('This backup is signed. Unlock the register (or set the same passphrase) to verify it.');
+      }
+      return NS.lock.verify(body, parsed.hmac).then(function (ok) {
+        if (!ok) throw new Error('This backup\'s signature does not match — it was not made with this passphrase. Nothing was imported.');
+        return parsed.data;
+      });
     });
   }
 
@@ -631,6 +650,11 @@
       }
     });
     return map;
+  }
+
+  /* the shape of a spreadsheet: its header, lowercased, so the same file maps itself */
+  function csvShape(headers) {
+    return String(headers || '').toLowerCase().replace(/[^a-z0-9|]+/g, ' ').trim().slice(0, 140);
   }
 
   function normSex(v) {
@@ -873,5 +897,5 @@
   NS.switchLoc = switchLoc; NS.addLoc = addLoc; NS.renameLoc = renameLoc; NS.delLoc = delLoc;
   NS.download = download; NS.exportJson = exportJson; NS.openBackup = openBackup; NS.sha256Hex = sha256Hex; NS.importJson = importJson; NS.demoDB = demoDB;
   NS.validDB = validDB; NS.mergeDB = mergeDB;
-  NS.parseCsv = parseCsv; NS.guessCsvMap = guessCsvMap; NS.csvToDB = csvToDB; NS.normDate = normDate; NS.setDemo = setDemo; NS.isDemo = isDemo;
+  NS.parseCsv = parseCsv; NS.guessCsvMap = guessCsvMap; NS.csvShape = csvShape; NS.csvToDB = csvToDB; NS.normDate = normDate; NS.setDemo = setDemo; NS.isDemo = isDemo;
 })(window.OPD = window.OPD || {});

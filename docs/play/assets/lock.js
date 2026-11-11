@@ -13,6 +13,7 @@
 
   var ITER = 310000;
   var enc = null;            /* the derived CryptoKey, in memory only */
+  var signKey = null;        /* an HMAC key from the same passphrase, for signing backups */
   var unlockedDb = null;     /* the decrypted database, held while unlocked */
 
   function subtle() {
@@ -31,15 +32,29 @@
     return out;
   }
 
-  function derive(pass, salt, iter) {
+  /* One PBKDF2 pass, two keys: the first 32 bytes encrypt, the last 32 sign. A vault written
+     before 3.12 has no `kdf` marker and still uses the original single-key derivation. */
+  function derivePair(pass, salt, iter, legacy) {
     var te = new TextEncoder();
-    return subtle().importKey('raw', te.encode(pass), { name: 'PBKDF2' }, false, ['deriveKey'])
+    return subtle().importKey('raw', te.encode(pass), { name: 'PBKDF2' }, false, ['deriveKey', 'deriveBits'])
       .then(function (base) {
-        return subtle().deriveKey(
-          { name: 'PBKDF2', salt: salt, iterations: iter, hash: 'SHA-256' },
-          base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
-        );
+        var params = { name: 'PBKDF2', salt: salt, iterations: iter, hash: 'SHA-256' };
+        if (legacy) {
+          return subtle().deriveKey(params, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
+            .then(function (k) { return { enc: k, sign: null }; });
+        }
+        return subtle().deriveBits(params, base, 512).then(function (bits) {
+          var all = new Uint8Array(bits);
+          var aesBytes = all.slice(0, 32), macBytes = all.slice(32, 64);
+          return Promise.all([
+            subtle().importKey('raw', aesBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']),
+            subtle().importKey('raw', macBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify'])
+          ]).then(function (keys) { return { enc: keys[0], sign: keys[1] }; });
+        });
       });
+  }
+  function derive(pass, salt, iter, legacy) {
+    return derivePair(pass, salt, iter, legacy).then(function (pair) { return pair.enc; });
   }
 
   function encrypt(key, text) {
@@ -58,11 +73,12 @@
 
   function vaultRecord(pass, db, existingSalt) {
     var salt = existingSalt || crypto.getRandomValues(new Uint8Array(16));
-    return derive(pass, salt, ITER).then(function (key) {
-      return encrypt(key, JSON.stringify(db)).then(function (out) {
-        enc = key;
+    return derivePair(pass, salt, ITER).then(function (pair) {
+      return encrypt(pair.enc, JSON.stringify(db)).then(function (out) {
+        enc = pair.enc;
+        signKey = pair.sign;
         return {
-          v: 1, iter: ITER, salt: b64(salt), iv: out.iv, ct: out.ct,
+          v: 1, kdf: 'split', iter: ITER, salt: b64(salt), iv: out.iv, ct: out.ct,
           at: Date.now()
         };
       });
@@ -91,11 +107,14 @@
   function unlock(pass) {
     return NS.storage.get('vault').then(function (rec) {
       if (!rec) return Promise.reject(new Error('No encrypted register found.'));
-      return derive(pass, unb64(rec.salt), rec.iter || ITER).then(function (key) {
+      var legacy = rec.kdf !== 'split';
+      return derivePair(pass, unb64(rec.salt), rec.iter || ITER, legacy).then(function (pair) {
+        var key = pair.enc;
         return decrypt(key, rec).then(function (text) {
           var db;
           try { db = JSON.parse(text); } catch (e) { throw new Error('The encrypted register is damaged.'); }
           enc = key;
+          signKey = pair.sign;
           unlockedDb = db;
           NS.S.locked = true;       /* still a locked register… */
           NS.S.lockedNow = false;   /* …but unlocked for this session */
@@ -139,12 +158,28 @@
   /* Drop the key from memory; the encrypted copy stays on disk. */
   function lockNow() {
     enc = null;
+    signKey = null;
     unlockedDb = null;
     NS.S.lockedNow = true;
     return true;
   }
 
   function isUnlocked() { return !isLocked() || (!!enc && !NS.S.lockedNow); }
+
+  /* ---------- signing a backup with the passphrase ---------- */
+  function hasSigner() { return !!signKey; }
+  function sign(text) {
+    if (!signKey) return Promise.resolve('');
+    return subtle().sign('HMAC', signKey, new TextEncoder().encode(text)).then(function (sig) {
+      var b = new Uint8Array(sig), out = '';
+      for (var i = 0; i < b.length; i++) out += ('0' + b[i].toString(16)).slice(-2);
+      return out;
+    }).catch(function () { return ''; });
+  }
+  function verify(text, sig) {
+    if (!signKey || !sig) return Promise.resolve(false);
+    return sign(text).then(function (mine) { return mine && mine === sig; });
+  }
 
   /* ---------- a backup you can carry ----------
      A plain JSON backup of an encrypted register would defeat the lock, so the export is the
@@ -190,6 +225,9 @@
     exportVault: exportVault,
     openVaultText: openVaultText,
     isLocked: isLocked,
-    isUnlocked: isUnlocked
+    isUnlocked: isUnlocked,
+    hasSigner: hasSigner,
+    sign: sign,
+    verify: verify
   };
 })(window.OPD = window.OPD || {});

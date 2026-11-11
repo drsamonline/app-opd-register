@@ -240,14 +240,19 @@
 
   function exportMonthCsv(mk) {
     mk = mk || NS.S.curM;
-    var rows = [['Date', 'Day status', 'Note', 'Sr', 'OPD no.', 'Case', 'Department', 'Name', 'Age', 'Sex', 'Address', 'Diagnosis', 'Treatment']];
+    /* the columns follow the register as it is set up, so a round trip lands where it left */
+    var fields = NS.fieldOrder ? NS.fieldOrder() : ['opd', 'caseType', 'department', 'name', 'age', 'sex', 'address', 'diagnosis', 'treatment'];
+    var head = ['Date', 'Day status', 'Note', 'Sr'].concat(fields.map(function (f) {
+      return NS.fieldLabel ? NS.fieldLabel(f) : f;
+    }));
+    var rows = [head];
     for (var d = 1, n = NS.dim(mk); d <= n; d++) {
       var k = mk + '-' + NS.pad(d), e = NS.ent()[k] || {};
       var sr = 0;
       (e.rows || []).forEach(function (r) {
         if (!NS.hasD(r)) return;
         sr++;
-        rows.push([k, NS.ST[e.status || 'working'].l, e.note || '', sr, r.opd, r.caseType, r.department, r.name, r.age, r.sex, r.address, r.diagnosis, r.treatment]);
+        rows.push([k, NS.ST[e.status || 'working'].l, e.note || '', sr].concat(fields.map(function (f) { return r[f] == null ? '' : r[f]; })));
       });
     }
     var q = function (v) { var s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };

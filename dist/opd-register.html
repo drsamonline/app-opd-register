@@ -817,6 +817,16 @@ tr.dragging td{opacity:.45}
 .dlgscrim.on{display:block}
 @media (max-width:560px){.dialog{top:auto;bottom:0;left:0;transform:none;width:100%;max-height:88dvh;border-radius:16px 16px 0 0}.dialog.on{display:flex}}
 
+.cflist{display:flex;flex-direction:column;gap:10px}
+.cfitem{border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:var(--panel-2)}
+.cfitem .cfh{font-size:12.5px;font-weight:700;color:var(--ink);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.cfitem .cfh small{font-weight:600;color:var(--muted-2);font-size:11px}
+.cfitem .cff{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:12px}
+.cfitem .cff b{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted-2);min-width:74px}
+.cfitem .cff .opt2{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:2px 8px;font-size:12px;cursor:pointer;max-width:46%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cfitem .cff .opt2:hover{border-color:var(--accent);color:var(--accent-d)}
+.cfitem .cff .opt2.keep{border-color:var(--accent);background:var(--accent-l);color:var(--accent-d);font-weight:700}
+
 .mapgrid{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;margin-top:8px}
 .mapgrid label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted-2)}
 .mapgrid select{height:30px;padding:0 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);font-size:12.5px;min-width:0}
@@ -1069,6 +1079,7 @@ tr.dragging td{opacity:.45}
             <button data-filter="data" aria-pressed="false">With patients</button>
             <button data-filter="today" aria-pressed="false">Today</button>
           </div>
+          <button class="btn sm" id="btnConflicts" hidden style="border-color:var(--warn);color:var(--warn)" title="Fields that differed in the last import"></button>
           <span id="onlyDay" hidden></span>
           <label class="rowfilter" title="Show only rows that match">
             <svg width="13" height="13"><use href="#i-search"/></svg>
@@ -1422,6 +1433,12 @@ tr.dragging td{opacity:.45}
   </div>
 </div>
 
+<div class="dialog" id="conflictDialog" role="dialog" aria-modal="true" aria-labelledby="cfTitle" aria-hidden="true">
+  <div class="dh"><h2 id="cfTitle">Differences from the import</h2><button class="btn icon ghost" id="cfClose" aria-label="Close"><svg width="17" height="17"><use href="#i-close"/></svg></button></div>
+  <div class="db" id="cfBody"></div>
+  <div class="df"><button class="btn primary" id="cfDone">Done</button></div>
+</div>
+
 <div class="dialog" id="csvDialog" role="dialog" aria-modal="true" aria-labelledby="csvTitle" aria-hidden="true">
   <div class="dh"><h2 id="csvTitle">Import a spreadsheet</h2><button class="btn icon ghost" id="csvClose" aria-label="Close"><svg width="17" height="17"><use href="#i-close"/></svg></button></div>
   <div class="db" id="csvBody"></div>
@@ -1614,6 +1631,7 @@ tr.dragging td{opacity:.45}
 
   var ITER = 310000;
   var enc = null;            /* the derived CryptoKey, in memory only */
+  var signKey = null;        /* an HMAC key from the same passphrase, for signing backups */
   var unlockedDb = null;     /* the decrypted database, held while unlocked */
 
   function subtle() {
@@ -1632,15 +1650,29 @@ tr.dragging td{opacity:.45}
     return out;
   }
 
-  function derive(pass, salt, iter) {
+  /* One PBKDF2 pass, two keys: the first 32 bytes encrypt, the last 32 sign. A vault written
+     before 3.12 has no `kdf` marker and still uses the original single-key derivation. */
+  function derivePair(pass, salt, iter, legacy) {
     var te = new TextEncoder();
-    return subtle().importKey('raw', te.encode(pass), { name: 'PBKDF2' }, false, ['deriveKey'])
+    return subtle().importKey('raw', te.encode(pass), { name: 'PBKDF2' }, false, ['deriveKey', 'deriveBits'])
       .then(function (base) {
-        return subtle().deriveKey(
-          { name: 'PBKDF2', salt: salt, iterations: iter, hash: 'SHA-256' },
-          base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
-        );
+        var params = { name: 'PBKDF2', salt: salt, iterations: iter, hash: 'SHA-256' };
+        if (legacy) {
+          return subtle().deriveKey(params, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
+            .then(function (k) { return { enc: k, sign: null }; });
+        }
+        return subtle().deriveBits(params, base, 512).then(function (bits) {
+          var all = new Uint8Array(bits);
+          var aesBytes = all.slice(0, 32), macBytes = all.slice(32, 64);
+          return Promise.all([
+            subtle().importKey('raw', aesBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']),
+            subtle().importKey('raw', macBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify'])
+          ]).then(function (keys) { return { enc: keys[0], sign: keys[1] }; });
+        });
       });
+  }
+  function derive(pass, salt, iter, legacy) {
+    return derivePair(pass, salt, iter, legacy).then(function (pair) { return pair.enc; });
   }
 
   function encrypt(key, text) {
@@ -1659,11 +1691,12 @@ tr.dragging td{opacity:.45}
 
   function vaultRecord(pass, db, existingSalt) {
     var salt = existingSalt || crypto.getRandomValues(new Uint8Array(16));
-    return derive(pass, salt, ITER).then(function (key) {
-      return encrypt(key, JSON.stringify(db)).then(function (out) {
-        enc = key;
+    return derivePair(pass, salt, ITER).then(function (pair) {
+      return encrypt(pair.enc, JSON.stringify(db)).then(function (out) {
+        enc = pair.enc;
+        signKey = pair.sign;
         return {
-          v: 1, iter: ITER, salt: b64(salt), iv: out.iv, ct: out.ct,
+          v: 1, kdf: 'split', iter: ITER, salt: b64(salt), iv: out.iv, ct: out.ct,
           at: Date.now()
         };
       });
@@ -1692,11 +1725,14 @@ tr.dragging td{opacity:.45}
   function unlock(pass) {
     return NS.storage.get('vault').then(function (rec) {
       if (!rec) return Promise.reject(new Error('No encrypted register found.'));
-      return derive(pass, unb64(rec.salt), rec.iter || ITER).then(function (key) {
+      var legacy = rec.kdf !== 'split';
+      return derivePair(pass, unb64(rec.salt), rec.iter || ITER, legacy).then(function (pair) {
+        var key = pair.enc;
         return decrypt(key, rec).then(function (text) {
           var db;
           try { db = JSON.parse(text); } catch (e) { throw new Error('The encrypted register is damaged.'); }
           enc = key;
+          signKey = pair.sign;
           unlockedDb = db;
           NS.S.locked = true;       /* still a locked register… */
           NS.S.lockedNow = false;   /* …but unlocked for this session */
@@ -1740,12 +1776,28 @@ tr.dragging td{opacity:.45}
   /* Drop the key from memory; the encrypted copy stays on disk. */
   function lockNow() {
     enc = null;
+    signKey = null;
     unlockedDb = null;
     NS.S.lockedNow = true;
     return true;
   }
 
   function isUnlocked() { return !isLocked() || (!!enc && !NS.S.lockedNow); }
+
+  /* ---------- signing a backup with the passphrase ---------- */
+  function hasSigner() { return !!signKey; }
+  function sign(text) {
+    if (!signKey) return Promise.resolve('');
+    return subtle().sign('HMAC', signKey, new TextEncoder().encode(text)).then(function (sig) {
+      var b = new Uint8Array(sig), out = '';
+      for (var i = 0; i < b.length; i++) out += ('0' + b[i].toString(16)).slice(-2);
+      return out;
+    }).catch(function () { return ''; });
+  }
+  function verify(text, sig) {
+    if (!signKey || !sig) return Promise.resolve(false);
+    return sign(text).then(function (mine) { return mine && mine === sig; });
+  }
 
   /* ---------- a backup you can carry ----------
      A plain JSON backup of an encrypted register would defeat the lock, so the export is the
@@ -1791,7 +1843,10 @@ tr.dragging td{opacity:.45}
     exportVault: exportVault,
     openVaultText: openVaultText,
     isLocked: isLocked,
-    isUnlocked: isUnlocked
+    isUnlocked: isUnlocked,
+    hasSigner: hasSigner,
+    sign: sign,
+    verify: verify
   };
 })(window.OPD = window.OPD || {});
 
@@ -1902,6 +1957,7 @@ tr.dragging td{opacity:.45}
   var DB = null;
   var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {},
             colOrder: 'default', colOrderByLoc: {}, lockIdle: 10, target: 0, monthTarget: 0, lastImport: null,
+            csvMaps: {},
             locked: false, lockedNow: false, lockChoice: '' };
   var events = {};
   var saveState = 'saved';
@@ -1951,6 +2007,7 @@ tr.dragging td{opacity:.45}
         if (st.colOrderByLoc && typeof st.colOrderByLoc === 'object') S.colOrderByLoc = st.colOrderByLoc;
         if (typeof st.lockIdle === 'number') S.lockIdle = st.lockIdle;
         if (st.lastImport) S.lastImport = st.lastImport;
+        if (st.csvMaps && typeof st.csvMaps === 'object') S.csvMaps = st.csvMaps;
         if (typeof st.target === 'number') S.target = st.target;
         if (typeof st.monthTarget === 'number') S.monthTarget = st.monthTarget;
         if (st.lockChoice === 'on' || st.lockChoice === 'off') S.lockChoice = st.lockChoice;
@@ -1997,7 +2054,7 @@ tr.dragging td{opacity:.45}
       localStorage.setItem(KS, JSON.stringify({
         theme: S.theme, filter: S.filter, colOrder: S.colOrder, colOrderByLoc: S.colOrderByLoc,
         lockIdle: S.lockIdle, target: S.target, monthTarget: S.monthTarget,
-        lockChoice: S.lockChoice, lastImport: S.lastImport
+        lockChoice: S.lockChoice, lastImport: S.lastImport, csvMaps: S.csvMaps
       }));
     } catch (e) {}
   }
@@ -2338,20 +2395,37 @@ tr.dragging td{opacity:.45}
   function exportJson() {
     saveNow();
     var body = JSON.stringify(DB);
+    var canSign = !!(NS.lock && NS.lock.hasSigner && NS.lock.hasSigner());
     sha256Hex(body).then(function (sum) {
-      var payload = { app: 'opd-register', kind: 'backup', v: 1, exported: new Date().toISOString(), sha256: sum, data: DB };
-      download('opd-register-backup-' + todayKey() + '.json', JSON.stringify(payload, null, 2), 'application/json');
-      toast(sum ? 'Backup saved, with a checksum.' : 'Backup saved — every location, every month.');
+      return (canSign ? NS.lock.sign(body) : Promise.resolve('')).then(function (mac) {
+        var payload = {
+          app: 'opd-register', kind: 'backup', v: 1,
+          exported: new Date().toISOString(), sha256: sum, hmac: mac || undefined, data: DB
+        };
+        download('opd-register-backup-' + todayKey() + '.json', JSON.stringify(payload, null, 2), 'application/json');
+        toast(mac ? 'Backup saved, signed with your passphrase.'
+          : (sum ? 'Backup saved, with a checksum.' : 'Backup saved — every location, every month.'));
+      });
     });
   }
 
   /* verify a wrapped backup; resolve with the database inside it */
   function openBackup(parsed) {
     if (!parsed || parsed.kind !== 'backup' || !parsed.data) return Promise.resolve(parsed);
-    if (!parsed.sha256) return Promise.resolve(parsed.data);
-    return sha256Hex(JSON.stringify(parsed.data)).then(function (sum) {
-      if (sum && sum !== parsed.sha256) throw new Error('This backup is damaged: its checksum does not match. Nothing was imported.');
-      return parsed.data;
+    var body = JSON.stringify(parsed.data);
+    return sha256Hex(body).then(function (sum) {
+      if (parsed.sha256 && sum && sum !== parsed.sha256) {
+        throw new Error('This backup is damaged: its checksum does not match. Nothing was imported.');
+      }
+      if (!parsed.hmac) return parsed.data;
+      /* signed: the signature proves it came from someone holding the passphrase */
+      if (!(NS.lock && NS.lock.hasSigner && NS.lock.hasSigner())) {
+        throw new Error('This backup is signed. Unlock the register (or set the same passphrase) to verify it.');
+      }
+      return NS.lock.verify(body, parsed.hmac).then(function (ok) {
+        if (!ok) throw new Error('This backup\'s signature does not match — it was not made with this passphrase. Nothing was imported.');
+        return parsed.data;
+      });
     });
   }
 
@@ -2430,6 +2504,11 @@ tr.dragging td{opacity:.45}
       }
     });
     return map;
+  }
+
+  /* the shape of a spreadsheet: its header, lowercased, so the same file maps itself */
+  function csvShape(headers) {
+    return String(headers || '').toLowerCase().replace(/[^a-z0-9|]+/g, ' ').trim().slice(0, 140);
   }
 
   function normSex(v) {
@@ -2672,7 +2751,7 @@ tr.dragging td{opacity:.45}
   NS.switchLoc = switchLoc; NS.addLoc = addLoc; NS.renameLoc = renameLoc; NS.delLoc = delLoc;
   NS.download = download; NS.exportJson = exportJson; NS.openBackup = openBackup; NS.sha256Hex = sha256Hex; NS.importJson = importJson; NS.demoDB = demoDB;
   NS.validDB = validDB; NS.mergeDB = mergeDB;
-  NS.parseCsv = parseCsv; NS.guessCsvMap = guessCsvMap; NS.csvToDB = csvToDB; NS.normDate = normDate; NS.setDemo = setDemo; NS.isDemo = isDemo;
+  NS.parseCsv = parseCsv; NS.guessCsvMap = guessCsvMap; NS.csvShape = csvShape; NS.csvToDB = csvToDB; NS.normDate = normDate; NS.setDemo = setDemo; NS.isDemo = isDemo;
 })(window.OPD = window.OPD || {});
 
 </script>
@@ -3842,6 +3921,8 @@ tr.dragging td{opacity:.45}
   NS.weekGridHTML = weekGridHTML;
   NS.weekDays = weekDays;
   NS.rowsMatching = rowsMatching;
+  NS.fieldOrder = function () { return order().slice(); };
+  NS.fieldLabel = function (f) { return COLHEAD[f] || f; };
   NS.renderCal = renderCal;
   NS.printDay = printDay;
   NS.duplicate = duplicate;
@@ -4320,14 +4401,19 @@ tr.dragging td{opacity:.45}
 
   function exportMonthCsv(mk) {
     mk = mk || NS.S.curM;
-    var rows = [['Date', 'Day status', 'Note', 'Sr', 'OPD no.', 'Case', 'Department', 'Name', 'Age', 'Sex', 'Address', 'Diagnosis', 'Treatment']];
+    /* the columns follow the register as it is set up, so a round trip lands where it left */
+    var fields = NS.fieldOrder ? NS.fieldOrder() : ['opd', 'caseType', 'department', 'name', 'age', 'sex', 'address', 'diagnosis', 'treatment'];
+    var head = ['Date', 'Day status', 'Note', 'Sr'].concat(fields.map(function (f) {
+      return NS.fieldLabel ? NS.fieldLabel(f) : f;
+    }));
+    var rows = [head];
     for (var d = 1, n = NS.dim(mk); d <= n; d++) {
       var k = mk + '-' + NS.pad(d), e = NS.ent()[k] || {};
       var sr = 0;
       (e.rows || []).forEach(function (r) {
         if (!NS.hasD(r)) return;
         sr++;
-        rows.push([k, NS.ST[e.status || 'working'].l, e.note || '', sr, r.opd, r.caseType, r.department, r.name, r.age, r.sex, r.address, r.diagnosis, r.treatment]);
+        rows.push([k, NS.ST[e.status || 'working'].l, e.note || '', sr].concat(fields.map(function (f) { return r[f] == null ? '' : r[f]; })));
       });
     }
     var q = function (v) { var s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
@@ -5475,6 +5561,7 @@ tr.dragging td{opacity:.45}
         var stats = NS.mergeDB(NS.db, incoming, { prefer: pendingPref ? pendingPref() : 'local' });
         summary = stats.summary();
         addedKeys = stats.addedKeys;
+        conflicts = stats.conflicts.slice();
       } else {
         NS.db.locations = incoming.locations;
         NS.db.current = incoming.current;
@@ -5494,6 +5581,9 @@ tr.dragging td{opacity:.45}
       NS.settingsSave();
       closeDialog();
       afterImport((mode === 'merge' ? 'Merged: ' : 'Replaced: ') + summary);
+      renderConflicts();
+      /* differences are resolved in the register, so go where they are visible */
+      if (conflicts.length) NS.switchView('register');
 
       NS.toast((mode === 'merge' ? 'Merged' : 'Replaced') + ' — ' + summary + '.', 'Undo', function () {
         NS.db.locations = before.locations;
@@ -5532,6 +5622,78 @@ tr.dragging td{opacity:.45}
     wireImport('fileMerge');
     wireImport('fileImport');
 
+    /* ---------- differences left after a merge, resolved one field at a time ---------- */
+    var conflicts = [];
+
+    function renderConflicts() {
+      var btn = $('#btnConflicts');
+      if (btn) {
+        btn.hidden = !conflicts.length;
+        btn.textContent = 'Resolve ' + conflicts.length + ' difference' + (conflicts.length === 1 ? '' : 's');
+      }
+      var box = $('#cfBody');
+      if (!box) return;
+      if (!conflicts.length) {
+        box.innerHTML = '<p style="color:var(--muted)">Nothing left to resolve.</p>';
+        return;
+      }
+      box.innerHTML = '<p style="color:var(--muted)">Both sides had a value for these fields. What is here was kept; take the file\'s where it is right.</p>' +
+        '<div class="cflist">' + conflicts.map(function (c, ci) {
+          return '<div class="cfitem"><div class="cfh">' + NS.esc(c.name || 'Unnamed') +
+            '<small>' + NS.esc(NS.fmtDay(c.day)) + (c.opd ? ' · OPD ' + NS.esc(c.opd) : '') + '</small></div>' +
+            c.fields.map(function (f, fi) {
+              return '<div class="cff"><b>' + NS.esc(f.f) + '</b>' +
+                '<button class="opt2 keep" data-cf="' + ci + ':' + fi + ':mine">' + NS.esc(String(f.mine) || '—') + '</button>' +
+                '<span style="color:var(--muted-2)">or</span>' +
+                '<button class="opt2" data-cf="' + ci + ':' + fi + ':theirs">' + NS.esc(String(f.theirs) || '—') + '</button></div>';
+            }).join('') + '</div>';
+        }).join('') + '</div>';
+    }
+
+    function applyConflict(ci, fi, side) {
+      var c = conflicts[ci];
+      if (!c) return;
+      var f = c.fields[fi];
+      if (!f) return;
+      var E = NS.db.locations[c.loc] && NS.db.locations[c.loc].entries;
+      var rows = ((E || {})[c.day] || {}).rows || [];
+      var row = rows.filter(function (x) {
+        return String(x.opd || '').trim() === String(c.opd || '').trim() && String(x.name || '') === String(c.name || '');
+      })[0];
+      if (!row) { NS.toast('That patient is no longer there.'); conflicts.splice(ci, 1); renderConflicts(); return; }
+      if (side === 'theirs') { row[f.f] = f.theirs; NS.saveNow(); }
+      c.fields.splice(fi, 1);
+      if (!c.fields.length) conflicts.splice(ci, 1);
+      renderConflicts();
+      if (side === 'theirs') {
+        NS.renderRegisterAll();
+        NS.toast('Took the file\'s ' + f.f + '.');
+      }
+    }
+
+    if ($('#btnConflicts')) $('#btnConflicts').addEventListener('click', function () {
+      renderConflicts();
+      var d = $('#conflictDialog');
+      d.classList.add('on'); d.setAttribute('aria-hidden', 'false');
+      var sc = $('#dlgScrim'); if (sc) sc.classList.add('on');
+      document.body.style.overflow = 'hidden';
+    });
+    if ($('#cfBody')) $('#cfBody').addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-cf]');
+      if (!b) return;
+      var parts = b.dataset.cf.split(':');
+      applyConflict(+parts[0], +parts[1], parts[2]);
+    });
+    ['#cfClose', '#cfDone'].forEach(function (sel) {
+      var el = $(sel);
+      if (el) el.addEventListener('click', function () {
+        var d = $('#conflictDialog');
+        if (d) { d.classList.remove('on'); d.setAttribute('aria-hidden', 'true'); }
+        var sc = $('#dlgScrim'); if (sc) sc.classList.remove('on');
+        document.body.style.overflow = '';
+      });
+    });
+
     /* ---------- a spreadsheet: map the columns, then the same preview ---------- */
     var csvText = '', csvRows = [];
 
@@ -5540,7 +5702,9 @@ tr.dragging td{opacity:.45}
       csvRows = NS.parseCsv(text);
       if (csvRows.length < 2) { NS.toast('That file has no rows to import.'); return; }
       var headers = csvRows[0].map(function (h, i) { return String(h || '').trim() || ('Column ' + (i + 1)); });
-      var guess = NS.guessCsvMap(csvRows[0]);
+      var shape = NS.csvShape(csvRows[0].join('|'));
+      var remembered = (NS.S.csvMaps || {})[shape];
+      var guess = remembered || NS.guessCsvMap(csvRows[0]);
       var FIELDS = [
         ['date', 'Date of visit'], ['opd', 'OPD no.'], ['name', 'Name'], ['age', 'Age'], ['sex', 'Sex'],
         ['department', 'Department'], ['address', 'Address'], ['diagnosis', 'Diagnosis'],
@@ -5553,7 +5717,8 @@ tr.dragging td{opacity:.45}
       };
       $('#csvBody').innerHTML =
         '<p style="color:var(--muted)">' + NS.esc(fileName) + ' · ' + (csvRows.length - 1) + ' row(s). ' +
-        'The columns were guessed from the header — correct anything that is wrong.</p>' +
+        (remembered ? 'These columns were remembered from the last file of this shape — correct anything that is wrong.'
+                    : 'The columns were guessed from the header — correct anything that is wrong.') + '</p>' +
         '<div class="mapgrid">' + FIELDS.map(function (f) {
           return '<label for="map-' + f[0] + '">' + f[1] + '</label><select id="map-' + f[0] + '" data-map="' + f[0] + '">' + opts(guess[f[0]]) + '</select>';
         }).join('') + '</div>' +
@@ -5614,6 +5779,12 @@ tr.dragging td{opacity:.45}
     if ($('#csvGo')) $('#csvGo').addEventListener('click', function () {
       var conv = csvPreview();
       if (!conv.rows) { NS.toast('Nothing to import — check the column mapping.'); return; }
+      /* remember this shape so next month's file maps itself */
+      if (csvRows.length) {
+        NS.S.csvMaps = NS.S.csvMaps || {};
+        NS.S.csvMaps[NS.csvShape(csvRows[0].join('|'))] = csvMap();
+        NS.settingsSave();
+      }
       closeCsv();
       openDialog(NS.validDB(conv.db), (conv.rows + ' rows from a spreadsheet'));
     });

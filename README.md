@@ -47,6 +47,7 @@ Screens at both widths: [`docs/assets/app-desktop.png`](docs/assets/app-desktop.
 [`docs/assets/app-import.png`](docs/assets/app-import.png) (import: merge or replace),
 [`docs/assets/app-conflict.png`](docs/assets/app-conflict.png) (what differs, and which side wins),
 [`docs/assets/app-csv.png`](docs/assets/app-csv.png) (the spreadsheet column mapper),
+[`docs/assets/app-conflicts.png`](docs/assets/app-conflicts.png) (resolving differences one field at a time),
 [`docs/assets/app-settings.png`](docs/assets/app-settings.png) (display, lock, storage),
 [`docs/assets/app-digest.png`](docs/assets/app-digest.png) (the printable digest) and
 [`docs/assets/app-stats.png`](docs/assets/app-stats.png). Badges are drawn locally by
@@ -58,7 +59,7 @@ badge service, because an offline-first app should not need the internet to desc
 `docs/play/index.html` is the whole app. No build step, no install, no dependencies.
 
 ```
-node tests/self-tests.js     # 139 checks, no browser needed (166 more run in a real browser)
+node tests/self-tests.js     # 141 checks, no browser needed (176 more run in a real browser)
 python3 scripts/build.py     # the single-file build -> dist/opd-register.html
 python3 scripts/badges.py    # the README badges
 ```
@@ -142,10 +143,20 @@ brought in can be found again from one button in *Patients*.
 
 **Import a spreadsheet.** A CSV gets a **column mapper**: the header is guessed, you correct
 it, rows without a date go to a day you choose, and the same preview follows. Quoted commas,
-CRLF and `dd/mm/yyyy` all survive.
+CRLF and `dd/mm/yyyy` all survive. The mapping is **remembered for that shape of file**, so
+next month's export maps itself.
+
+**Differences are not swallowed.** When both sides hold a value for the same patient, the
+preview lists them and the merge leaves a **queue** in the register — *Resolve 3 differences* —
+where each field can be taken from the file or left as it is, one at a time.
+
+**Exports match the register.** The month CSV follows the column order you set, so an export
+can be edited in a spreadsheet and merged straight back in.
 The file format is plain JSON and is compatible with the earlier v2 release.
 
-**Optional passphrase lock — offered once, never nagged.** On first open the app asks
+**Optional passphrase lock — offered once, never nagged.** While the lock is on, backups are
+**signed** with an HMAC key derived from the same passphrase (one PBKDF2 pass, two keys), so a
+file that has been altered is refused rather than merged. On first open the app asks
 whether to protect the register, with *Turn it on* and *Not now* side by side. Declining is
 remembered on that device and changes nothing else; the offer never comes back on its own,
 and the way to change your mind is always in the ⋯ menu (*Lock & privacy*) and in
@@ -175,7 +186,7 @@ dist/opd-register.html   the single-file build (generated)
 scripts/build.py         inlines css + js into the single file
 scripts/badges.py        draws docs/assets/badge-*.svg
 scripts/icons.py         renders the PWA icon set from icon.svg
-tests/self-tests.js      139 checks over the real source, no browser
+tests/self-tests.js      141 checks over the real source, no browser
 ```
 
 The app is six classic scripts in one namespace, not ES modules — so it also runs from

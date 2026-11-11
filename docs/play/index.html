@@ -200,6 +200,7 @@
             <button data-filter="data" aria-pressed="false">With patients</button>
             <button data-filter="today" aria-pressed="false">Today</button>
           </div>
+          <button class="btn sm" id="btnConflicts" hidden style="border-color:var(--warn);color:var(--warn)" title="Fields that differed in the last import"></button>
           <span id="onlyDay" hidden></span>
           <label class="rowfilter" title="Show only rows that match">
             <svg width="13" height="13"><use href="#i-search"/></svg>
@@ -551,6 +552,12 @@
     <button class="btn" id="dlgReplace">Replace everything</button>
     <button class="btn primary" id="dlgMerge">Merge</button>
   </div>
+</div>
+
+<div class="dialog" id="conflictDialog" role="dialog" aria-modal="true" aria-labelledby="cfTitle" aria-hidden="true">
+  <div class="dh"><h2 id="cfTitle">Differences from the import</h2><button class="btn icon ghost" id="cfClose" aria-label="Close"><svg width="17" height="17"><use href="#i-close"/></svg></button></div>
+  <div class="db" id="cfBody"></div>
+  <div class="df"><button class="btn primary" id="cfDone">Done</button></div>
 </div>
 
 <div class="dialog" id="csvDialog" role="dialog" aria-modal="true" aria-labelledby="csvTitle" aria-hidden="true">

@@ -1,5 +1,32 @@
 # Changelog
 
+## 3.12.0 — 2026-11-12
+
+The round trip closes: out to a spreadsheet and back in, and nothing quietly overruled.
+
+### Added
+- **A conflict queue.** A merge that finds a filled field on both sides no longer ends at a
+  global preference. The register shows *Resolve N differences*; each field is a pair of
+  buttons — what is here, or the file's — applied one at a time.
+- **Signed backups.** While the lock is on, an exported backup carries an HMAC-SHA256 of its
+  contents, keyed from the same passphrase. One PBKDF2 pass now derives two keys (32 bytes to
+  encrypt, 32 to sign); a vault written before this release still opens, because the record
+  says which derivation it used.
+- **The month CSV follows the register's column order**, so an export edited in Excel can be
+  merged straight back without re-arranging columns.
+- **A CSV mapping is remembered per file shape** — the header row, normalised — so the same
+  monthly export maps itself and says so.
+
+### Fixed
+- After a merge with differences the app stayed on *About & help*, where the differences
+  button is not visible; it now opens the register, which is where they are resolved.
+- Deriving a second key would have doubled the unlock cost; the two keys come from one
+  PBKDF2 pass instead.
+
+### Tests
+- 141 node checks (was 139) and 176 browser checks (was 166): the signature round trip, a
+  tampered signed backup, the CSV export order, a remembered shape, and resolving a conflict.
+
 ## 3.11.0 — 2026-11-12
 
 The register can now come from a spreadsheet, and it says when two copies disagree.

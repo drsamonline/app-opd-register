@@ -1163,6 +1163,8 @@
   NS.weekGridHTML = weekGridHTML;
   NS.weekDays = weekDays;
   NS.rowsMatching = rowsMatching;
+  NS.fieldOrder = function () { return order().slice(); };
+  NS.fieldLabel = function (f) { return COLHEAD[f] || f; };
   NS.renderCal = renderCal;
   NS.printDay = printDay;
   NS.duplicate = duplicate;

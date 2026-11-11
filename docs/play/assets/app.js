@@ -761,6 +761,7 @@
         var stats = NS.mergeDB(NS.db, incoming, { prefer: pendingPref ? pendingPref() : 'local' });
         summary = stats.summary();
         addedKeys = stats.addedKeys;
+        conflicts = stats.conflicts.slice();
       } else {
         NS.db.locations = incoming.locations;
         NS.db.current = incoming.current;
@@ -780,6 +781,9 @@
       NS.settingsSave();
       closeDialog();
       afterImport((mode === 'merge' ? 'Merged: ' : 'Replaced: ') + summary);
+      renderConflicts();
+      /* differences are resolved in the register, so go where they are visible */
+      if (conflicts.length) NS.switchView('register');
 
       NS.toast((mode === 'merge' ? 'Merged' : 'Replaced') + ' — ' + summary + '.', 'Undo', function () {
         NS.db.locations = before.locations;
@@ -818,6 +822,78 @@
     wireImport('fileMerge');
     wireImport('fileImport');
 
+    /* ---------- differences left after a merge, resolved one field at a time ---------- */
+    var conflicts = [];
+
+    function renderConflicts() {
+      var btn = $('#btnConflicts');
+      if (btn) {
+        btn.hidden = !conflicts.length;
+        btn.textContent = 'Resolve ' + conflicts.length + ' difference' + (conflicts.length === 1 ? '' : 's');
+      }
+      var box = $('#cfBody');
+      if (!box) return;
+      if (!conflicts.length) {
+        box.innerHTML = '<p style="color:var(--muted)">Nothing left to resolve.</p>';
+        return;
+      }
+      box.innerHTML = '<p style="color:var(--muted)">Both sides had a value for these fields. What is here was kept; take the file\'s where it is right.</p>' +
+        '<div class="cflist">' + conflicts.map(function (c, ci) {
+          return '<div class="cfitem"><div class="cfh">' + NS.esc(c.name || 'Unnamed') +
+            '<small>' + NS.esc(NS.fmtDay(c.day)) + (c.opd ? ' · OPD ' + NS.esc(c.opd) : '') + '</small></div>' +
+            c.fields.map(function (f, fi) {
+              return '<div class="cff"><b>' + NS.esc(f.f) + '</b>' +
+                '<button class="opt2 keep" data-cf="' + ci + ':' + fi + ':mine">' + NS.esc(String(f.mine) || '—') + '</button>' +
+                '<span style="color:var(--muted-2)">or</span>' +
+                '<button class="opt2" data-cf="' + ci + ':' + fi + ':theirs">' + NS.esc(String(f.theirs) || '—') + '</button></div>';
+            }).join('') + '</div>';
+        }).join('') + '</div>';
+    }
+
+    function applyConflict(ci, fi, side) {
+      var c = conflicts[ci];
+      if (!c) return;
+      var f = c.fields[fi];
+      if (!f) return;
+      var E = NS.db.locations[c.loc] && NS.db.locations[c.loc].entries;
+      var rows = ((E || {})[c.day] || {}).rows || [];
+      var row = rows.filter(function (x) {
+        return String(x.opd || '').trim() === String(c.opd || '').trim() && String(x.name || '') === String(c.name || '');
+      })[0];
+      if (!row) { NS.toast('That patient is no longer there.'); conflicts.splice(ci, 1); renderConflicts(); return; }
+      if (side === 'theirs') { row[f.f] = f.theirs; NS.saveNow(); }
+      c.fields.splice(fi, 1);
+      if (!c.fields.length) conflicts.splice(ci, 1);
+      renderConflicts();
+      if (side === 'theirs') {
+        NS.renderRegisterAll();
+        NS.toast('Took the file\'s ' + f.f + '.');
+      }
+    }
+
+    if ($('#btnConflicts')) $('#btnConflicts').addEventListener('click', function () {
+      renderConflicts();
+      var d = $('#conflictDialog');
+      d.classList.add('on'); d.setAttribute('aria-hidden', 'false');
+      var sc = $('#dlgScrim'); if (sc) sc.classList.add('on');
+      document.body.style.overflow = 'hidden';
+    });
+    if ($('#cfBody')) $('#cfBody').addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-cf]');
+      if (!b) return;
+      var parts = b.dataset.cf.split(':');
+      applyConflict(+parts[0], +parts[1], parts[2]);
+    });
+    ['#cfClose', '#cfDone'].forEach(function (sel) {
+      var el = $(sel);
+      if (el) el.addEventListener('click', function () {
+        var d = $('#conflictDialog');
+        if (d) { d.classList.remove('on'); d.setAttribute('aria-hidden', 'true'); }
+        var sc = $('#dlgScrim'); if (sc) sc.classList.remove('on');
+        document.body.style.overflow = '';
+      });
+    });
+
     /* ---------- a spreadsheet: map the columns, then the same preview ---------- */
     var csvText = '', csvRows = [];
 
@@ -826,7 +902,9 @@
       csvRows = NS.parseCsv(text);
       if (csvRows.length < 2) { NS.toast('That file has no rows to import.'); return; }
       var headers = csvRows[0].map(function (h, i) { return String(h || '').trim() || ('Column ' + (i + 1)); });
-      var guess = NS.guessCsvMap(csvRows[0]);
+      var shape = NS.csvShape(csvRows[0].join('|'));
+      var remembered = (NS.S.csvMaps || {})[shape];
+      var guess = remembered || NS.guessCsvMap(csvRows[0]);
       var FIELDS = [
         ['date', 'Date of visit'], ['opd', 'OPD no.'], ['name', 'Name'], ['age', 'Age'], ['sex', 'Sex'],
         ['department', 'Department'], ['address', 'Address'], ['diagnosis', 'Diagnosis'],
@@ -839,7 +917,8 @@
       };
       $('#csvBody').innerHTML =
         '<p style="color:var(--muted)">' + NS.esc(fileName) + ' · ' + (csvRows.length - 1) + ' row(s). ' +
-        'The columns were guessed from the header — correct anything that is wrong.</p>' +
+        (remembered ? 'These columns were remembered from the last file of this shape — correct anything that is wrong.'
+                    : 'The columns were guessed from the header — correct anything that is wrong.') + '</p>' +
         '<div class="mapgrid">' + FIELDS.map(function (f) {
           return '<label for="map-' + f[0] + '">' + f[1] + '</label><select id="map-' + f[0] + '" data-map="' + f[0] + '">' + opts(guess[f[0]]) + '</select>';
         }).join('') + '</div>' +
@@ -900,6 +979,12 @@
     if ($('#csvGo')) $('#csvGo').addEventListener('click', function () {
       var conv = csvPreview();
       if (!conv.rows) { NS.toast('Nothing to import — check the column mapping.'); return; }
+      /* remember this shape so next month's file maps itself */
+      if (csvRows.length) {
+        NS.S.csvMaps = NS.S.csvMaps || {};
+        NS.S.csvMaps[NS.csvShape(csvRows[0].join('|'))] = csvMap();
+        NS.settingsSave();
+      }
       closeCsv();
       openDialog(NS.validDB(conv.db), (conv.rows + ' rows from a spreadsheet'));
     });
