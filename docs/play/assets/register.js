@@ -67,7 +67,7 @@
   }
 
   /* ================= ROW MARKUP (desktop) ================= */
-  var COLS = [34, 86, 52, 118, 140, 46, 44, 92, 120, 150, 152, 80, 28];
+  var COLS = [34, 86, 52, 118, 140, 46, 44, 92, 120, 150, 152, 80, 46];
   function sel(v, cur) { return v === cur ? ' selected' : ''; }
 
   function rowHTML(r, i) {
@@ -85,7 +85,8 @@
       '<td><input class="cellin" data-f="diagnosis" autocomplete="off" placeholder="Diagnosis" value="' + esc(r.diagnosis) + '"></td>' +
       '<td><input class="cellin" data-f="treatment" autocomplete="off" placeholder="Treatment" value="' + esc(r.treatment) + '"></td>' +
       '<td><input class="cellin num" data-f="followUp" type="date" value="' + esc(r.followUp) + '" title="Follow-up date"></td>' +
-      '<td class="acts"><button class="rowdel" data-del="' + i + '" title="Delete row" aria-label="Delete row">&times;</button></td>';
+      '<td class="acts"><button class="rowrep" data-rep="' + i + '" title="Repeat the last prescription for this OPD no." aria-label="Repeat last prescription">&#8635;</button>' +
+      '<button class="rowdel" data-del="' + i + '" title="Delete row" aria-label="Delete row">&times;</button></td>';
   }
 
   function tableHTML(k, list) {
@@ -199,13 +200,72 @@
     return out;
   }
 
+  /* ---- the week, as seven columns you can compare ---- */
+  function weekGridHTML(days) {
+    var totals = 0, perDay = [], busiest = { n: 0 };
+    days.forEach(function (k) {
+      var e = NS.ensureD(k);
+      var list = e.rows.map(function (r, i) { return { r: r, i: i }; }).filter(function (x) { return NS.hasD(x.r); });
+      var q = S.rowFilter.trim().toLowerCase();
+      if (q) list = list.filter(function (x) {
+        return [x.r.opd, x.r.name, x.r.department, x.r.diagnosis, x.r.treatment, x.r.address, x.r.phone]
+          .join(' ').toLowerCase().indexOf(q) !== -1;
+      });
+      totals += list.length;
+      perDay.push(list.length);
+      if (list.length > busiest.n) busiest = { n: list.length, k: k };
+      return { k: k, e: e, list: list };
+    });
+
+    var cols = days.map(function (k) {
+      var e = NS.ensureD(k);
+      var list = e.rows.map(function (r, i) { return { r: r, i: i }; }).filter(function (x) { return NS.hasD(x.r); });
+      var q = S.rowFilter.trim().toLowerCase();
+      if (q) list = list.filter(function (x) {
+        return [x.r.opd, x.r.name, x.r.department, x.r.diagnosis, x.r.treatment, x.r.address, x.r.phone]
+          .join(' ').toLowerCase().indexOf(q) !== -1;
+      });
+      var d = new Date(k + 'T00:00:00');
+      var st = e.status || 'working';
+      var isToday = k === NS.tKey();
+      var cards = list.map(function (x) {
+        var r = x.r;
+        return '<button class="wcard" data-wopen="' + k + ':' + x.i + '" title="Open ' + esc(r.name || 'patient') + '">' +
+          '<b>' + esc(r.name || 'Unnamed') + '</b>' +
+          '<span>' + esc([NS.ageLabel(r.age), r.sex === 'M' ? 'M' : r.sex === 'F' ? 'F' : '', r.department].filter(Boolean).join(' · ')) + '</span>' +
+          (r.diagnosis ? '<em>' + esc(r.diagnosis) + '</em>' : '') +
+          '</button>';
+      }).join('');
+      return '<div class="wcol' + (isToday ? ' today' : '') + '" data-wday="' + k + '">' +
+        '<div class="wh"><b>' + d.toLocaleDateString(undefined, { weekday: 'short' }) + '</b>' +
+        '<span class="num">' + d.getDate() + '</span>' +
+        (st !== 'working' ? '<i class="ws st-' + st + '">' + NS.ST[st].s + '</i>' : '') +
+        '<span class="wc num">' + (list.length || '') + '</span></div>' +
+        '<div class="wb">' + (cards || '<span class="wnone">—</span>') + '</div>' +
+        '<button class="wadd" data-wadd="' + k + '">+ Add</button>' +
+        '</div>';
+    }).join('');
+
+    var avg = (totals / Math.max(1, perDay.filter(function (n) { return n > 0; }).length)).toFixed(1);
+    return '<div class="wsum">' +
+      '<span><b class="num">' + totals + '</b> patients this week</span>' +
+      '<span><b class="num">' + avg + '</b> per active day</span>' +
+      (busiest.k ? '<span>busiest <b>' + esc(NS.fmtDay(busiest.k)) + '</b> · <span class="num">' + busiest.n + '</span></span>' : '') +
+      '</div>' +
+      '<div class="weekgrid">' + cols + '</div>';
+  }
+
   function renderRegister() {
     var host = $('#days');
     if (!host) return;
     NS.ensureM(S.curM);
     var days = visibleDays();
-    host.innerHTML = days.length ? days.map(dayHTML).join('')
-      : '<div class="empty"><b>No days to show</b>Switch the filter, or pick another month.</div>';
+    if (S.scope === 'week' && !narrow()) {
+      host.innerHTML = weekGridHTML(days);
+    } else {
+      host.innerHTML = days.length ? days.map(dayHTML).join('')
+        : '<div class="empty"><b>No days to show</b>Switch the filter, or pick another month.</div>';
+    }
     var wk = S.scope === 'week';
     var wl = $('#weekLbl'), wp = $('#btnWeekPrev'), wn = $('#btnWeekNext');
     if (wl) {
@@ -290,6 +350,31 @@
     return i;
   }
 
+  /* one patient's visits on half a page, for the file or the patient */
+  function printSlip(k, i) {
+    var row = ((NS.ent()[k] || {}).rows || [])[i];
+    if (!row) return;
+    var list = NS.patientHistory(row.opd, k, i);
+    var visits = list.concat([{ date: k, i: i, row: row }]).sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+    var esc2 = NS.esc;
+    $('#slip').innerHTML =
+      '<div class="sliphead"><div><b>' + esc2(NS.db.current) + '</b><span>OPD record — visit history</span></div>' +
+      '<div style="text-align:right"><b>' + esc2(row.name || 'Unnamed') + '</b>' +
+      '<span>' + esc2([row.opd ? 'OPD ' + row.opd : '', NS.ageLabel(row.age), row.sex === 'M' ? 'Male' : row.sex === 'F' ? 'Female' : '', row.phone].filter(Boolean).join(' · ')) + '</span></div></div>' +
+      '<table class="st"><thead><tr><th>Date</th><th>Case</th><th>Dept.</th><th>Diagnosis</th><th>Treatment</th><th>Follow-up</th></tr></thead><tbody>' +
+      visits.map(function (v) {
+        return '<tr><td>' + esc2(NS.fmtDay(v.date)) + '</td><td>' + esc2(v.row.caseType || '') + '</td>' +
+          '<td>' + esc2(v.row.department || '') + '</td><td>' + esc2(v.row.diagnosis || '') + '</td>' +
+          '<td>' + esc2(v.row.treatment || '') + '</td><td>' + esc2(v.row.followUp ? NS.fmtDay(v.row.followUp) : '') + '</td></tr>';
+      }).join('') + '</tbody></table>' +
+      '<div class="slipfoot"><span>Printed ' + new Date().toLocaleDateString() + '</span><span>' + visits.length + ' visit' + (visits.length > 1 ? 's' : '') + '</span></div>';
+    document.body.classList.add('printing-slip');
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.body.classList.remove('printing-slip'); }, 400);
+    }, 40);
+  }
+
   function printDay(k) {
     NS.saveNow();
     S.open[k] = true;
@@ -324,6 +409,23 @@
   }
 
   /* copy a patient into the next free row of the same day — families arrive together */
+  /* copy the last prescription for this OPD number into this row */
+  function repeatLast(k, i) {
+    var e = NS.ensureD(k), row = e.rows[i];
+    if (!row || !String(row.opd || '').trim()) { NS.toast('This row has no OPD number yet.'); return false; }
+    var prev = NS.patientHistory(row.opd, k, i)[0];
+    if (!prev) { NS.toast('No earlier visit for OPD ' + row.opd + '.'); return false; }
+    ['diagnosis', 'treatment'].forEach(function (f) {
+      if (!prev.row[f]) return;
+      row[f] = prev.row[f];
+      var el = document.querySelector('.drow[data-date="' + k + '"][data-idx="' + i + '"] [data-f="' + f + '"]');
+      if (el) el.value = prev.row[f];
+    });
+    NS.saveNow(); updateCount(k);
+    NS.toast('Repeated the prescription from ' + NS.fmtDay(prev.date) + '.');
+    return true;
+  }
+
   function duplicate(k, i) {
     var e = NS.ensureD(k);
     var src = e.rows[i];
@@ -389,7 +491,11 @@
       return;
     }
     var last = list[0];
-    box.innerHTML = '<div class="hist"><div class="hh">Previous visits<span class="grow"></span>' + list.length + '</div>' +
+    box.innerHTML = '<div class="hist"><div class="hh">Previous visits' +
+      '<span style="text-transform:none;letter-spacing:0;font-weight:700;color:var(--muted-2)">last seen ' + esc(NS.humanGap(list[0].date)) + '</span>' +
+      '<span class="grow"></span>' +
+      '<button type="button" class="btn sm ghost" data-slip="1" title="Print this patient\'s visits">Print slip</button>' +
+      '</div>' +
       list.slice(0, 6).map(function (v) {
         var bits = [v.row.department, v.row.diagnosis].filter(Boolean).map(esc).join(' · ') ||
           (v.row.treatment ? '' : '<span>no diagnosis recorded</span>');
@@ -546,6 +652,8 @@
     });
 
     $('#sheetHistory').addEventListener('click', function (ev) {
+      var sl = ev.target.closest('[data-slip]');
+      if (sl) { printSlip(sheetCtx.k, sheetCtx.i); return; }
       var b = ev.target.closest('[data-copyvisit]');
       if (!b) return;
       var k = b.dataset.copyvisit, i = +b.dataset.ci;
@@ -697,6 +805,20 @@
         renderRegister();
         return;
       }
+      var rep = ev.target.closest('[data-rep]');
+      if (rep) {
+        var rtr = rep.closest('tr[data-date]');
+        repeatLast(rtr.dataset.date, +rep.dataset.rep);
+        return;
+      }
+      var wo = ev.target.closest('[data-wopen]');
+      if (wo) {
+        var parts = wo.dataset.wopen.split(':');
+        openSheet(parts[0], +parts[1]);
+        return;
+      }
+      var wa = ev.target.closest('[data-wadd]');
+      if (wa) { openSheet(wa.dataset.wadd, null); return; }
       var sr = ev.target.closest('td.sr');
       if (sr) {
         var rowTr = sr.closest('tr[data-date]');
@@ -802,8 +924,9 @@
 
     $('#btnPrintReg').addEventListener('click', function () {
       NS.saveNow();
-      document.body.classList.add('printing-register');
-      setTimeout(function () { window.print(); setTimeout(function () { document.body.classList.remove('printing-register'); }, 400); }, 40);
+      var cls = S.scope === 'week' ? 'printing-week' : 'printing-register';
+      document.body.classList.add(cls);
+      setTimeout(function () { window.print(); setTimeout(function () { document.body.classList.remove(cls); }, 400); }, 40);
     });
 
     window.addEventListener('resize', NS.debounce(function () {
@@ -849,6 +972,9 @@
 
   NS.duplicateCurrent = duplicateCurrent;
   NS.shiftWeek = shiftWeek;
+  NS.printSlip = printSlip;
+  NS.repeatLast = repeatLast;
+  NS.weekGridHTML = weekGridHTML;
   NS.weekDays = weekDays;
   NS.rowsMatching = rowsMatching;
   NS.renderCal = renderCal;

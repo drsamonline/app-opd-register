@@ -128,7 +128,16 @@
     var fw = $('#dFollow');
     if (fw) {
       var due = NS.dueFollowUps(14);
-      fw.innerHTML = due.length ? '<table class="minitable"><thead><tr><th>Due</th><th>Patient</th><th style="text-align:right">OPD</th></tr></thead><tbody>' +
+      var byDept = {};
+      due.forEach(function (f) {
+        var d = String(f.row.department || '').trim() || 'Unspecified';
+        byDept[d] = (byDept[d] || 0) + 1;
+      });
+      var deptLine = Object.keys(byDept).sort(function (a, b) { return byDept[b] - byDept[a]; }).slice(0, 4)
+        .map(function (d) { return '<span class="chip" style="pointer-events:none;min-height:24px;font-size:11px">' + esc(d) + ' <b>' + byDept[d] + '</b></span>'; })
+        .join('');
+      fw.innerHTML = due.length ? (deptLine ? '<div class="chips" style="padding:8px 12px;border-bottom:1px solid var(--line-2)">' + deptLine + '</div>' : '') +
+        '<table class="minitable"><thead><tr><th>Due</th><th>Patient</th><th style="text-align:right">OPD</th></tr></thead><tbody>' +
         due.slice(0, 8).map(function (f) {
           var d = new Date(f.date + 'T00:00:00');
           var lbl = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });

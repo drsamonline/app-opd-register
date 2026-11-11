@@ -183,6 +183,17 @@ eq('age label: a toddler', NS.ageLabel('1.5'), '18 mo');
 eq('age label: empty', NS.ageLabel(''), '');
 eq('age label: junk passes through', NS.ageLabel('unknown'), 'unknown');
 
+/* ---------- how long ago ---------- */
+const dayMs = 864e5;
+const ago = n => { const d = new Date(Date.now() - n * dayMs); return d.getFullYear() + '-' + NS.pad(d.getMonth() + 1) + '-' + NS.pad(d.getDate()); };
+eq('gap: today', NS.humanGap(ago(0)), 'today');
+eq('gap: yesterday', NS.humanGap(ago(1)), 'yesterday');
+eq('gap: days', NS.humanGap(ago(4)), '4 days ago');
+eq('gap: weeks', NS.humanGap(ago(20)), '2 weeks ago');
+eq('gap: months', NS.humanGap(ago(95)), '3 months ago');
+eq('gap: years', NS.humanGap(ago(800)), '2 years ago');
+eq('gap: empty', NS.humanGap(''), '');
+
 /* ---------- department memory ---------- */
 const dh = NS.deptHistory(5);
 ok('dept history: most used first', dh.length > 0 && dh[0].n >= dh[dh.length - 1].n, dh);

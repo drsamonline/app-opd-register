@@ -159,7 +159,7 @@
         <button class="btn sm ghost" id="btnWeekPrev" hidden title="Previous week">‹</button>
         <span class="hint" id="weekLbl" hidden style="font-size:12px;font-weight:700;color:var(--muted)"></span>
         <button class="btn sm ghost" id="btnWeekNext" hidden title="Next week">›</button>
-        <button class="btn sm" id="btnPrintReg"><svg width="14" height="14"><use href="#i-print"/></svg>Print</button>
+        <button class="btn sm" id="btnPrintReg" title="Print what is on screen — the month, or the week"><svg width="14" height="14"><use href="#i-print"/></svg>Print</button>
       </div>
 
       <section class="panel">
@@ -437,6 +437,8 @@
     <button class="btn primary" id="btnSheetSave">Done</button>
   </div>
 </aside>
+
+<div class="slip" id="slip" aria-hidden="true"></div>
 
 <div class="toast" id="toast"><span id="toastMsg"></span><button id="toastAct" hidden></button></div>
 

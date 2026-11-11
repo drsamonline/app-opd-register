@@ -12,16 +12,19 @@ undo an import.
 **3.2.0** — patient history with copy-prescription · next OPD number suggestion · row filter ·
 week scope · undo for a bulk range · ages as months.
 
+**3.3.0** — week as seven columns · print the week · printed visit slip · repeat last
+prescription from a row · follow-ups by department · "last seen" gaps.
+
 ## Next (small, high value)
 
 | Item | Why | Cost |
 |---|---|---|
-| **A week at a glance** — seven *columns*, not seven sections | The week scope lists days; comparing them side by side is the actual job | M |
-| **Print the week** — one A4 with the seven days and a weekly total | What a weekly review asks for | S |
-| **History as a printable slip** — one patient's visits on half a page | Handed to the patient, or filed | S |
-| **"Repeat last visit" without opening history** — a row action | The copy exists; reaching it takes two taps | XS |
-| **Department-level follow-up counts** — due next week, by department | Staffing the OPD, not the file | S |
-| **A patient's gaps** — "last seen 3 months ago" on the history header | The interval matters as much as the visit | XS |
+| **Week totals in the digest** — a weekly column beside the daily one | The week is reviewed; the month is filed | S |
+| **Drag a patient to another day** | A patient seen on the wrong day is a two-minute fix today | M |
+| **Undo for delete-location** | The only irreversible action left without one | XS |
+| **Search inside one day** from the day header | The row filter spans every day; sometimes you want one | XS |
+| **A "no diagnosis" nudge** — count rows saved without one | Catches a half-entered day before the digest | XS |
+| **Sort the patient list by date or name** | Search results are newest-first only | XS |
 
 ## Then (worth the code)
 

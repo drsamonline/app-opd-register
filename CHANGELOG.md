@@ -1,5 +1,33 @@
 # Changelog
 
+## 3.3.0 — 2026-11-11
+
+The third tier: the register now reads as a week, and a patient's history can leave the screen.
+
+### Added
+- **Week as seven columns** — in Week scope on a wide screen, one column per day with the
+  patients in each, the day's status, a per-day count, and a weekly total above
+  (patients, per active day, busiest day). A card opens that patient; `+ Add` starts one.
+- **Print the week** — the Print button follows the scope: the month, or the week on one A4
+  with the columns intact.
+- **Printed visit slip** — *Print slip* in the history panel puts one patient's visits on
+  half a page: date, case, department, diagnosis, treatment, follow-up.
+- **Repeat the last prescription** as a row action (↻ in the actions cell), without opening
+  anything.
+- **Follow-ups due, by department** — the dashboard panel now opens with a count per
+  department for the next fortnight.
+- **"Last seen 3 months ago"** on the history header — the interval matters as much as the
+  visit.
+
+### Changed
+- Demo month rebuilt: returning patients are ~1 in 7 (they were 2 in 3), and sex no longer
+  follows the department index — every surgeon was a woman, which made the demo's sex split
+  read 75/25.
+- Actions column widened for the second row button.
+
+### Tests
+- 98 node checks (was 91) and 87 browser checks (was 79).
+
 ## 3.2.0 — 2026-11-11
 
 The second tier of the roadmap: the register answers the question asked in the room.

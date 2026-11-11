@@ -446,6 +446,66 @@ tr:hover .rowdel{opacity:1}
 tr.drow td.sr{cursor:pointer;color:var(--accent-d);font-weight:700}
 tr.drow td.sr:hover{background:var(--accent-l)}
 
+/* ---- the week as seven columns ---- */
+.wsum{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:9px 12px;border-bottom:1px solid var(--line-2);
+  font-size:12px;color:var(--muted);font-weight:600}
+.wsum b{color:var(--ink);font-weight:750}
+.weekgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--line);border-top:1px solid var(--line)}
+.wcol{background:var(--panel);display:flex;flex-direction:column;min-height:220px;min-width:0}
+.wcol.today{background:var(--accent-l)}
+.wcol .wh{display:flex;align-items:center;gap:5px;padding:7px 8px;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
+.wcol .wh b{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted-2)}
+.wcol .wh .num{font-size:14px;font-weight:750;letter-spacing:-.02em;color:var(--ink)}
+.wcol .wh .ws{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:1px 5px;border-radius:4px;
+  background:var(--info-l);color:var(--info);font-style:normal}
+.wcol .wh .ws.st-noactivity{background:var(--warn-l);color:var(--warn)}
+.wcol .wh .ws.st-nonworking{background:var(--line-2);color:var(--muted)}
+.wcol .wh .wc{margin-left:auto;font-size:11px;font-weight:800;color:var(--accent-d);font-variant-numeric:tabular-nums}
+.wcol .wb{flex:1;padding:5px;display:flex;flex-direction:column;gap:4px;overflow:hidden}
+.wcard{
+  display:flex;flex-direction:column;gap:1px;width:100%;text-align:left;padding:5px 6px;border:1px solid var(--line);
+  border-radius:6px;background:var(--panel);cursor:pointer;min-width:0;
+}
+.wcard:hover{border-color:var(--accent);background:var(--accent-l)}
+.wcard b{font-size:11.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wcard span{font-size:10px;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wcard em{font-size:10px;color:var(--muted-2);font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wcol .wnone{font-size:11px;color:var(--muted-2);padding:2px 4px}
+.wadd{border:0;border-top:1px solid var(--line-2);background:transparent;color:var(--accent-d);font-size:11px;font-weight:700;
+  padding:5px;cursor:pointer;text-align:center}
+.wadd:hover{background:var(--accent-l)}
+@media (max-width:1100px){.weekgrid{grid-template-columns:repeat(7,minmax(120px,1fr));overflow-x:auto}}
+
+/* ---- the printable slip ---- */
+.slip{display:none}
+@media print{
+  body.printing-slip .app,body.printing-slip .sheet,body.printing-slip .scrim,
+  body.printing-slip .toast,body.printing-slip .menu{display:none!important}
+  body.printing-slip .slip{display:block!important}
+  .sliphead{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid #0b1220;padding-bottom:8px;margin-bottom:10px}
+  .sliphead b{display:block;font-size:14px}
+  .sliphead span{display:block;font-size:11px;color:#64748b}
+  .slip table{width:100%;border-collapse:collapse;font-size:10.5pt}
+  .slip th{background:#f1f5f9;text-align:left;padding:5px 7px;border:1px solid #cbd5e1;font-size:9pt;text-transform:uppercase;letter-spacing:.04em}
+  .slip td{padding:5px 7px;border:1px solid #dbe3ee;vertical-align:top}
+  .slipfoot{display:flex;justify-content:space-between;font-size:9pt;color:#64748b;margin-top:10px;border-top:1px solid #dbe3ee;padding-top:6px}
+  body.printing-week .calhead,body.printing-week .dowrow,body.printing-week .cal,
+  body.printing-week .regbar,body.printing-week #rangePanel,body.printing-week .chips{display:none!important}
+  body.printing-week .weekgrid{grid-template-columns:repeat(7,1fr);gap:0;border:1px solid #999}
+  body.printing-week .wcol{border-right:1px solid #ccc;min-height:0}
+  body.printing-week .wadd{display:none}
+  body.printing-week .wcard{border:0;border-bottom:1px solid #eee;padding:2px 0;border-radius:0}
+  body.printing-week .wsum{border:0}
+}
+tr.drow td.acts{white-space:nowrap}
+.rowrep{
+  width:20px;height:24px;border:0;border-radius:5px;background:transparent;color:var(--muted-2);
+  cursor:pointer;opacity:0;transition:opacity .1s;font-size:13px;line-height:1;
+}
+tr:hover .rowrep{opacity:1}
+.rowrep:hover{background:var(--accent-l);color:var(--accent-d)}
+tr.drow td.acts .rowdel{width:20px}
+
 .rangepanel{
   display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;
   padding:10px 12px;background:var(--accent-l);border-bottom:1px solid var(--line);

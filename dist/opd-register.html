@@ -460,6 +460,66 @@ tr:hover .rowdel{opacity:1}
 tr.drow td.sr{cursor:pointer;color:var(--accent-d);font-weight:700}
 tr.drow td.sr:hover{background:var(--accent-l)}
 
+/* ---- the week as seven columns ---- */
+.wsum{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:9px 12px;border-bottom:1px solid var(--line-2);
+  font-size:12px;color:var(--muted);font-weight:600}
+.wsum b{color:var(--ink);font-weight:750}
+.weekgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--line);border-top:1px solid var(--line)}
+.wcol{background:var(--panel);display:flex;flex-direction:column;min-height:220px;min-width:0}
+.wcol.today{background:var(--accent-l)}
+.wcol .wh{display:flex;align-items:center;gap:5px;padding:7px 8px;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
+.wcol .wh b{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted-2)}
+.wcol .wh .num{font-size:14px;font-weight:750;letter-spacing:-.02em;color:var(--ink)}
+.wcol .wh .ws{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:1px 5px;border-radius:4px;
+  background:var(--info-l);color:var(--info);font-style:normal}
+.wcol .wh .ws.st-noactivity{background:var(--warn-l);color:var(--warn)}
+.wcol .wh .ws.st-nonworking{background:var(--line-2);color:var(--muted)}
+.wcol .wh .wc{margin-left:auto;font-size:11px;font-weight:800;color:var(--accent-d);font-variant-numeric:tabular-nums}
+.wcol .wb{flex:1;padding:5px;display:flex;flex-direction:column;gap:4px;overflow:hidden}
+.wcard{
+  display:flex;flex-direction:column;gap:1px;width:100%;text-align:left;padding:5px 6px;border:1px solid var(--line);
+  border-radius:6px;background:var(--panel);cursor:pointer;min-width:0;
+}
+.wcard:hover{border-color:var(--accent);background:var(--accent-l)}
+.wcard b{font-size:11.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wcard span{font-size:10px;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wcard em{font-size:10px;color:var(--muted-2);font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wcol .wnone{font-size:11px;color:var(--muted-2);padding:2px 4px}
+.wadd{border:0;border-top:1px solid var(--line-2);background:transparent;color:var(--accent-d);font-size:11px;font-weight:700;
+  padding:5px;cursor:pointer;text-align:center}
+.wadd:hover{background:var(--accent-l)}
+@media (max-width:1100px){.weekgrid{grid-template-columns:repeat(7,minmax(120px,1fr));overflow-x:auto}}
+
+/* ---- the printable slip ---- */
+.slip{display:none}
+@media print{
+  body.printing-slip .app,body.printing-slip .sheet,body.printing-slip .scrim,
+  body.printing-slip .toast,body.printing-slip .menu{display:none!important}
+  body.printing-slip .slip{display:block!important}
+  .sliphead{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid #0b1220;padding-bottom:8px;margin-bottom:10px}
+  .sliphead b{display:block;font-size:14px}
+  .sliphead span{display:block;font-size:11px;color:#64748b}
+  .slip table{width:100%;border-collapse:collapse;font-size:10.5pt}
+  .slip th{background:#f1f5f9;text-align:left;padding:5px 7px;border:1px solid #cbd5e1;font-size:9pt;text-transform:uppercase;letter-spacing:.04em}
+  .slip td{padding:5px 7px;border:1px solid #dbe3ee;vertical-align:top}
+  .slipfoot{display:flex;justify-content:space-between;font-size:9pt;color:#64748b;margin-top:10px;border-top:1px solid #dbe3ee;padding-top:6px}
+  body.printing-week .calhead,body.printing-week .dowrow,body.printing-week .cal,
+  body.printing-week .regbar,body.printing-week #rangePanel,body.printing-week .chips{display:none!important}
+  body.printing-week .weekgrid{grid-template-columns:repeat(7,1fr);gap:0;border:1px solid #999}
+  body.printing-week .wcol{border-right:1px solid #ccc;min-height:0}
+  body.printing-week .wadd{display:none}
+  body.printing-week .wcard{border:0;border-bottom:1px solid #eee;padding:2px 0;border-radius:0}
+  body.printing-week .wsum{border:0}
+}
+tr.drow td.acts{white-space:nowrap}
+.rowrep{
+  width:20px;height:24px;border:0;border-radius:5px;background:transparent;color:var(--muted-2);
+  cursor:pointer;opacity:0;transition:opacity .1s;font-size:13px;line-height:1;
+}
+tr:hover .rowrep{opacity:1}
+.rowrep:hover{background:var(--accent-l);color:var(--accent-d)}
+tr.drow td.acts .rowdel{width:20px}
+
 .rangepanel{
   display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;
   padding:10px 12px;background:var(--accent-l);border-bottom:1px solid var(--line);
@@ -876,7 +936,7 @@ table.st td.z{color:var(--muted-2)}
         <button class="btn sm ghost" id="btnWeekPrev" hidden title="Previous week">‹</button>
         <span class="hint" id="weekLbl" hidden style="font-size:12px;font-weight:700;color:var(--muted)"></span>
         <button class="btn sm ghost" id="btnWeekNext" hidden title="Next week">›</button>
-        <button class="btn sm" id="btnPrintReg"><svg width="14" height="14"><use href="#i-print"/></svg>Print</button>
+        <button class="btn sm" id="btnPrintReg" title="Print what is on screen — the month, or the week"><svg width="14" height="14"><use href="#i-print"/></svg>Print</button>
       </div>
 
       <section class="panel">
@@ -1154,6 +1214,8 @@ table.st td.z{color:var(--muted-2)}
     <button class="btn primary" id="btnSheetSave">Done</button>
   </div>
 </aside>
+
+<div class="slip" id="slip" aria-hidden="true"></div>
 
 <div class="toast" id="toast"><span id="toastMsg"></span><button id="toastAct" hidden></button></div>
 
@@ -1515,6 +1577,22 @@ table.st td.z{color:var(--muted-2)}
     return Math.round(y) + ' y';
   }
 
+  /* "3 months ago" — the interval matters as much as the visit */
+  function humanGap(dateKey) {
+    var k = String(dateKey || '').trim();
+    if (!k) return '';
+    var then = new Date(k + 'T00:00:00'), now = new Date();
+    var days = Math.floor((now - then) / 864e5);
+    if (isNaN(days)) return '';
+    if (days <= 0) return 'today';
+    if (days === 1) return 'yesterday';
+    if (days < 7) return days + ' days ago';
+    if (days < 30) { var w = Math.floor(days / 7); return w + ' week' + (w > 1 ? 's' : '') + ' ago'; }
+    if (days < 365) { var m = Math.floor(days / 30.44); return m + ' month' + (m > 1 ? 's' : '') + ' ago'; }
+    var y = Math.floor(days / 365.25);
+    return y + ' year' + (y > 1 ? 's' : '') + ' ago';
+  }
+
   /* the departments used in this location, most used first */
   function deptHistory(limit) {
     var counts = {}, E = ent();
@@ -1660,7 +1738,7 @@ table.st td.z{color:var(--muted-2)}
     var mk = mKey(base);
     var n = dim(mk);
     var opd = 24800;
-    var seen = [];
+    var pool = [];
     for (var d = 1; d <= n; d++) {
       var k = mk + '-' + pad(d);
       var wd = new Date(k + 'T00:00:00').getDay();
@@ -1669,32 +1747,33 @@ table.st td.z{color:var(--muted-2)}
       var count = wd === 0 ? 0 : 4 + ((d * 7) % 6);
       for (var i = 0; i < count; i++) {
         var di = (d + i) % depts.length;
-        var sex = depts[di] === 'Gynec & Obs' ? 'F' : ((d + i) % 2 ? 'M' : 'F');
-        /* every fourth patient is a returning one: same OPD number and identity, new
-           diagnosis — so the history panel has something to show in the demo. */
-        if (seen.length > 3 && (d + i) % 4 === 0) {
-          var prev = seen[(d * 3 + i * 7) % seen.length];
+        /* sex must not follow the department index, or every surgeon is a woman */
+        var nextNo = opd + 1;
+        var sex = depts[di] === 'Gynec & Obs' ? 'F' : ((nextNo % 2) ? 'M' : 'F');
+        /* roughly one in seven is a follow-up of someone already in the pool, so the
+           history panel has something real to show — the same person, a new visit. */
+        if (pool.length > 8 && (d * 3 + i * 5) % 7 === 0) {
+          var prev = pool[(d * 7 + i * 11) % pool.length];
+          var fu = new Date(); fu.setDate(fu.getDate() + ((d + i) % 14) + 1);
           rows[i] = {
             opd: prev.opd, caseType: 'Old', department: prev.department, name: prev.name,
             age: prev.age, sex: prev.sex, address: prev.address,
             diagnosis: dx[(d + i + 3) % dx.length] + ' (review)',
             treatment: tx[(d + i + 2) % tx.length],
             phone: prev.phone,
-            followUp: ((d + i) % 6 === 0) ? (function () {
-              var f = new Date(); f.setDate(f.getDate() + ((d + i) % 12) + 1);
-              return f.getFullYear() + '-' + pad(f.getMonth() + 1) + '-' + pad(f.getDate());
-            })() : ''
+            followUp: ((d + i) % 4 === 0) ? (fu.getFullYear() + '-' + pad(fu.getMonth() + 1) + '-' + pad(fu.getDate())) : ''
           };
           continue;
         }
-        rows[i] = {
-          opd: String(++opd),
-          caseType: (i % 3 === 0) ? 'New' : 'Old',
+        opd = nextNo;
+        var made = {
+          opd: String(nextNo),
+          caseType: 'New',
           department: depts[di],
           name: names[(d + i * 3) % names.length],
           age: String(depts[di] === 'Pediatrics' ? 2 + ((d + i) % 12) : 18 + ((d * 3 + i * 5) % 60)),
           sex: sex,
-          address: ['Akota','Alkapuri','Gorwa','Karelibaug','Manjalpur'][(d + i) % 5],
+          address: ['Akota', 'Alkapuri', 'Gorwa', 'Karelibaug', 'Manjalpur'][(d + i) % 5],
           diagnosis: dx[(d + i) % dx.length],
           treatment: tx[(d + i) % tx.length],
           phone: '9' + String(700000000 + ((d * 37 + i * 911) % 99999999)).slice(0, 9),
@@ -1705,8 +1784,9 @@ table.st td.z{color:var(--muted-2)}
               })()
             : ''
         };
+        rows[i] = made;
+        pool.push(made);
       }
-      for (var z = 0; z < count; z++) if (rows[z] && rows[z].opd && seen.indexOf(rows[z]) === -1) seen.push(rows[z]);
       while (rows.length < Math.max(DROWS, count + 1)) rows.push(Object.assign({}, ER));
       loc.entries[k] = { status: st, note: d === 5 ? 'Free camp — 40 screened' : '', rows: rows };
     }
@@ -1718,7 +1798,7 @@ table.st td.z{color:var(--muted-2)}
   NS.tKey = todayKey; NS.mKey = mKey; NS.fmtDay = fmtDay; NS.fmtMonth = fmtMonth; NS.fmtMonthShort = fmtMonthShort;
   NS.hasD = hasD; NS.blankRows = blankRows; NS.ageYears = ageYears; NS.deptK = deptK; NS.debounce = debounce;
   NS.normaliseAge = normaliseAge; NS.dueFollowUps = dueFollowUps; NS.deptHistory = deptHistory; NS.DF_ALL = DF_ALL;
-  NS.patientHistory = patientHistory; NS.nextOpd = nextOpd; NS.ageLabel = ageLabel;
+  NS.patientHistory = patientHistory; NS.nextOpd = nextOpd; NS.ageLabel = ageLabel; NS.humanGap = humanGap;
   NS.ER = ER; NS.DF = DF; NS.DROWS = DROWS; NS.ST = ST; NS.SO = SO;
   NS.S = S;
   Object.defineProperty(NS, 'db', { get: function () { return DB; } });
@@ -1806,7 +1886,7 @@ table.st td.z{color:var(--muted-2)}
   }
 
   /* ================= ROW MARKUP (desktop) ================= */
-  var COLS = [34, 86, 52, 118, 140, 46, 44, 92, 120, 150, 152, 80, 28];
+  var COLS = [34, 86, 52, 118, 140, 46, 44, 92, 120, 150, 152, 80, 46];
   function sel(v, cur) { return v === cur ? ' selected' : ''; }
 
   function rowHTML(r, i) {
@@ -1824,7 +1904,8 @@ table.st td.z{color:var(--muted-2)}
       '<td><input class="cellin" data-f="diagnosis" autocomplete="off" placeholder="Diagnosis" value="' + esc(r.diagnosis) + '"></td>' +
       '<td><input class="cellin" data-f="treatment" autocomplete="off" placeholder="Treatment" value="' + esc(r.treatment) + '"></td>' +
       '<td><input class="cellin num" data-f="followUp" type="date" value="' + esc(r.followUp) + '" title="Follow-up date"></td>' +
-      '<td class="acts"><button class="rowdel" data-del="' + i + '" title="Delete row" aria-label="Delete row">&times;</button></td>';
+      '<td class="acts"><button class="rowrep" data-rep="' + i + '" title="Repeat the last prescription for this OPD no." aria-label="Repeat last prescription">&#8635;</button>' +
+      '<button class="rowdel" data-del="' + i + '" title="Delete row" aria-label="Delete row">&times;</button></td>';
   }
 
   function tableHTML(k, list) {
@@ -1938,13 +2019,72 @@ table.st td.z{color:var(--muted-2)}
     return out;
   }
 
+  /* ---- the week, as seven columns you can compare ---- */
+  function weekGridHTML(days) {
+    var totals = 0, perDay = [], busiest = { n: 0 };
+    days.forEach(function (k) {
+      var e = NS.ensureD(k);
+      var list = e.rows.map(function (r, i) { return { r: r, i: i }; }).filter(function (x) { return NS.hasD(x.r); });
+      var q = S.rowFilter.trim().toLowerCase();
+      if (q) list = list.filter(function (x) {
+        return [x.r.opd, x.r.name, x.r.department, x.r.diagnosis, x.r.treatment, x.r.address, x.r.phone]
+          .join(' ').toLowerCase().indexOf(q) !== -1;
+      });
+      totals += list.length;
+      perDay.push(list.length);
+      if (list.length > busiest.n) busiest = { n: list.length, k: k };
+      return { k: k, e: e, list: list };
+    });
+
+    var cols = days.map(function (k) {
+      var e = NS.ensureD(k);
+      var list = e.rows.map(function (r, i) { return { r: r, i: i }; }).filter(function (x) { return NS.hasD(x.r); });
+      var q = S.rowFilter.trim().toLowerCase();
+      if (q) list = list.filter(function (x) {
+        return [x.r.opd, x.r.name, x.r.department, x.r.diagnosis, x.r.treatment, x.r.address, x.r.phone]
+          .join(' ').toLowerCase().indexOf(q) !== -1;
+      });
+      var d = new Date(k + 'T00:00:00');
+      var st = e.status || 'working';
+      var isToday = k === NS.tKey();
+      var cards = list.map(function (x) {
+        var r = x.r;
+        return '<button class="wcard" data-wopen="' + k + ':' + x.i + '" title="Open ' + esc(r.name || 'patient') + '">' +
+          '<b>' + esc(r.name || 'Unnamed') + '</b>' +
+          '<span>' + esc([NS.ageLabel(r.age), r.sex === 'M' ? 'M' : r.sex === 'F' ? 'F' : '', r.department].filter(Boolean).join(' · ')) + '</span>' +
+          (r.diagnosis ? '<em>' + esc(r.diagnosis) + '</em>' : '') +
+          '</button>';
+      }).join('');
+      return '<div class="wcol' + (isToday ? ' today' : '') + '" data-wday="' + k + '">' +
+        '<div class="wh"><b>' + d.toLocaleDateString(undefined, { weekday: 'short' }) + '</b>' +
+        '<span class="num">' + d.getDate() + '</span>' +
+        (st !== 'working' ? '<i class="ws st-' + st + '">' + NS.ST[st].s + '</i>' : '') +
+        '<span class="wc num">' + (list.length || '') + '</span></div>' +
+        '<div class="wb">' + (cards || '<span class="wnone">—</span>') + '</div>' +
+        '<button class="wadd" data-wadd="' + k + '">+ Add</button>' +
+        '</div>';
+    }).join('');
+
+    var avg = (totals / Math.max(1, perDay.filter(function (n) { return n > 0; }).length)).toFixed(1);
+    return '<div class="wsum">' +
+      '<span><b class="num">' + totals + '</b> patients this week</span>' +
+      '<span><b class="num">' + avg + '</b> per active day</span>' +
+      (busiest.k ? '<span>busiest <b>' + esc(NS.fmtDay(busiest.k)) + '</b> · <span class="num">' + busiest.n + '</span></span>' : '') +
+      '</div>' +
+      '<div class="weekgrid">' + cols + '</div>';
+  }
+
   function renderRegister() {
     var host = $('#days');
     if (!host) return;
     NS.ensureM(S.curM);
     var days = visibleDays();
-    host.innerHTML = days.length ? days.map(dayHTML).join('')
-      : '<div class="empty"><b>No days to show</b>Switch the filter, or pick another month.</div>';
+    if (S.scope === 'week' && !narrow()) {
+      host.innerHTML = weekGridHTML(days);
+    } else {
+      host.innerHTML = days.length ? days.map(dayHTML).join('')
+        : '<div class="empty"><b>No days to show</b>Switch the filter, or pick another month.</div>';
+    }
     var wk = S.scope === 'week';
     var wl = $('#weekLbl'), wp = $('#btnWeekPrev'), wn = $('#btnWeekNext');
     if (wl) {
@@ -2029,6 +2169,31 @@ table.st td.z{color:var(--muted-2)}
     return i;
   }
 
+  /* one patient's visits on half a page, for the file or the patient */
+  function printSlip(k, i) {
+    var row = ((NS.ent()[k] || {}).rows || [])[i];
+    if (!row) return;
+    var list = NS.patientHistory(row.opd, k, i);
+    var visits = list.concat([{ date: k, i: i, row: row }]).sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+    var esc2 = NS.esc;
+    $('#slip').innerHTML =
+      '<div class="sliphead"><div><b>' + esc2(NS.db.current) + '</b><span>OPD record — visit history</span></div>' +
+      '<div style="text-align:right"><b>' + esc2(row.name || 'Unnamed') + '</b>' +
+      '<span>' + esc2([row.opd ? 'OPD ' + row.opd : '', NS.ageLabel(row.age), row.sex === 'M' ? 'Male' : row.sex === 'F' ? 'Female' : '', row.phone].filter(Boolean).join(' · ')) + '</span></div></div>' +
+      '<table class="st"><thead><tr><th>Date</th><th>Case</th><th>Dept.</th><th>Diagnosis</th><th>Treatment</th><th>Follow-up</th></tr></thead><tbody>' +
+      visits.map(function (v) {
+        return '<tr><td>' + esc2(NS.fmtDay(v.date)) + '</td><td>' + esc2(v.row.caseType || '') + '</td>' +
+          '<td>' + esc2(v.row.department || '') + '</td><td>' + esc2(v.row.diagnosis || '') + '</td>' +
+          '<td>' + esc2(v.row.treatment || '') + '</td><td>' + esc2(v.row.followUp ? NS.fmtDay(v.row.followUp) : '') + '</td></tr>';
+      }).join('') + '</tbody></table>' +
+      '<div class="slipfoot"><span>Printed ' + new Date().toLocaleDateString() + '</span><span>' + visits.length + ' visit' + (visits.length > 1 ? 's' : '') + '</span></div>';
+    document.body.classList.add('printing-slip');
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.body.classList.remove('printing-slip'); }, 400);
+    }, 40);
+  }
+
   function printDay(k) {
     NS.saveNow();
     S.open[k] = true;
@@ -2063,6 +2228,23 @@ table.st td.z{color:var(--muted-2)}
   }
 
   /* copy a patient into the next free row of the same day — families arrive together */
+  /* copy the last prescription for this OPD number into this row */
+  function repeatLast(k, i) {
+    var e = NS.ensureD(k), row = e.rows[i];
+    if (!row || !String(row.opd || '').trim()) { NS.toast('This row has no OPD number yet.'); return false; }
+    var prev = NS.patientHistory(row.opd, k, i)[0];
+    if (!prev) { NS.toast('No earlier visit for OPD ' + row.opd + '.'); return false; }
+    ['diagnosis', 'treatment'].forEach(function (f) {
+      if (!prev.row[f]) return;
+      row[f] = prev.row[f];
+      var el = document.querySelector('.drow[data-date="' + k + '"][data-idx="' + i + '"] [data-f="' + f + '"]');
+      if (el) el.value = prev.row[f];
+    });
+    NS.saveNow(); updateCount(k);
+    NS.toast('Repeated the prescription from ' + NS.fmtDay(prev.date) + '.');
+    return true;
+  }
+
   function duplicate(k, i) {
     var e = NS.ensureD(k);
     var src = e.rows[i];
@@ -2128,7 +2310,11 @@ table.st td.z{color:var(--muted-2)}
       return;
     }
     var last = list[0];
-    box.innerHTML = '<div class="hist"><div class="hh">Previous visits<span class="grow"></span>' + list.length + '</div>' +
+    box.innerHTML = '<div class="hist"><div class="hh">Previous visits' +
+      '<span style="text-transform:none;letter-spacing:0;font-weight:700;color:var(--muted-2)">last seen ' + esc(NS.humanGap(list[0].date)) + '</span>' +
+      '<span class="grow"></span>' +
+      '<button type="button" class="btn sm ghost" data-slip="1" title="Print this patient\'s visits">Print slip</button>' +
+      '</div>' +
       list.slice(0, 6).map(function (v) {
         var bits = [v.row.department, v.row.diagnosis].filter(Boolean).map(esc).join(' · ') ||
           (v.row.treatment ? '' : '<span>no diagnosis recorded</span>');
@@ -2285,6 +2471,8 @@ table.st td.z{color:var(--muted-2)}
     });
 
     $('#sheetHistory').addEventListener('click', function (ev) {
+      var sl = ev.target.closest('[data-slip]');
+      if (sl) { printSlip(sheetCtx.k, sheetCtx.i); return; }
       var b = ev.target.closest('[data-copyvisit]');
       if (!b) return;
       var k = b.dataset.copyvisit, i = +b.dataset.ci;
@@ -2436,6 +2624,20 @@ table.st td.z{color:var(--muted-2)}
         renderRegister();
         return;
       }
+      var rep = ev.target.closest('[data-rep]');
+      if (rep) {
+        var rtr = rep.closest('tr[data-date]');
+        repeatLast(rtr.dataset.date, +rep.dataset.rep);
+        return;
+      }
+      var wo = ev.target.closest('[data-wopen]');
+      if (wo) {
+        var parts = wo.dataset.wopen.split(':');
+        openSheet(parts[0], +parts[1]);
+        return;
+      }
+      var wa = ev.target.closest('[data-wadd]');
+      if (wa) { openSheet(wa.dataset.wadd, null); return; }
       var sr = ev.target.closest('td.sr');
       if (sr) {
         var rowTr = sr.closest('tr[data-date]');
@@ -2541,8 +2743,9 @@ table.st td.z{color:var(--muted-2)}
 
     $('#btnPrintReg').addEventListener('click', function () {
       NS.saveNow();
-      document.body.classList.add('printing-register');
-      setTimeout(function () { window.print(); setTimeout(function () { document.body.classList.remove('printing-register'); }, 400); }, 40);
+      var cls = S.scope === 'week' ? 'printing-week' : 'printing-register';
+      document.body.classList.add(cls);
+      setTimeout(function () { window.print(); setTimeout(function () { document.body.classList.remove(cls); }, 400); }, 40);
     });
 
     window.addEventListener('resize', NS.debounce(function () {
@@ -2588,6 +2791,9 @@ table.st td.z{color:var(--muted-2)}
 
   NS.duplicateCurrent = duplicateCurrent;
   NS.shiftWeek = shiftWeek;
+  NS.printSlip = printSlip;
+  NS.repeatLast = repeatLast;
+  NS.weekGridHTML = weekGridHTML;
   NS.weekDays = weekDays;
   NS.rowsMatching = rowsMatching;
   NS.renderCal = renderCal;
@@ -2740,7 +2946,16 @@ table.st td.z{color:var(--muted-2)}
     var fw = $('#dFollow');
     if (fw) {
       var due = NS.dueFollowUps(14);
-      fw.innerHTML = due.length ? '<table class="minitable"><thead><tr><th>Due</th><th>Patient</th><th style="text-align:right">OPD</th></tr></thead><tbody>' +
+      var byDept = {};
+      due.forEach(function (f) {
+        var d = String(f.row.department || '').trim() || 'Unspecified';
+        byDept[d] = (byDept[d] || 0) + 1;
+      });
+      var deptLine = Object.keys(byDept).sort(function (a, b) { return byDept[b] - byDept[a]; }).slice(0, 4)
+        .map(function (d) { return '<span class="chip" style="pointer-events:none;min-height:24px;font-size:11px">' + esc(d) + ' <b>' + byDept[d] + '</b></span>'; })
+        .join('');
+      fw.innerHTML = due.length ? (deptLine ? '<div class="chips" style="padding:8px 12px;border-bottom:1px solid var(--line-2)">' + deptLine + '</div>' : '') +
+        '<table class="minitable"><thead><tr><th>Due</th><th>Patient</th><th style="text-align:right">OPD</th></tr></thead><tbody>' +
         due.slice(0, 8).map(function (f) {
           var d = new Date(f.date + 'T00:00:00');
           var lbl = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });

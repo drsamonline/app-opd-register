@@ -341,6 +341,22 @@
     return Math.round(y) + ' y';
   }
 
+  /* "3 months ago" — the interval matters as much as the visit */
+  function humanGap(dateKey) {
+    var k = String(dateKey || '').trim();
+    if (!k) return '';
+    var then = new Date(k + 'T00:00:00'), now = new Date();
+    var days = Math.floor((now - then) / 864e5);
+    if (isNaN(days)) return '';
+    if (days <= 0) return 'today';
+    if (days === 1) return 'yesterday';
+    if (days < 7) return days + ' days ago';
+    if (days < 30) { var w = Math.floor(days / 7); return w + ' week' + (w > 1 ? 's' : '') + ' ago'; }
+    if (days < 365) { var m = Math.floor(days / 30.44); return m + ' month' + (m > 1 ? 's' : '') + ' ago'; }
+    var y = Math.floor(days / 365.25);
+    return y + ' year' + (y > 1 ? 's' : '') + ' ago';
+  }
+
   /* the departments used in this location, most used first */
   function deptHistory(limit) {
     var counts = {}, E = ent();
@@ -486,7 +502,7 @@
     var mk = mKey(base);
     var n = dim(mk);
     var opd = 24800;
-    var seen = [];
+    var pool = [];
     for (var d = 1; d <= n; d++) {
       var k = mk + '-' + pad(d);
       var wd = new Date(k + 'T00:00:00').getDay();
@@ -495,32 +511,33 @@
       var count = wd === 0 ? 0 : 4 + ((d * 7) % 6);
       for (var i = 0; i < count; i++) {
         var di = (d + i) % depts.length;
-        var sex = depts[di] === 'Gynec & Obs' ? 'F' : ((d + i) % 2 ? 'M' : 'F');
-        /* every fourth patient is a returning one: same OPD number and identity, new
-           diagnosis — so the history panel has something to show in the demo. */
-        if (seen.length > 3 && (d + i) % 4 === 0) {
-          var prev = seen[(d * 3 + i * 7) % seen.length];
+        /* sex must not follow the department index, or every surgeon is a woman */
+        var nextNo = opd + 1;
+        var sex = depts[di] === 'Gynec & Obs' ? 'F' : ((nextNo % 2) ? 'M' : 'F');
+        /* roughly one in seven is a follow-up of someone already in the pool, so the
+           history panel has something real to show — the same person, a new visit. */
+        if (pool.length > 8 && (d * 3 + i * 5) % 7 === 0) {
+          var prev = pool[(d * 7 + i * 11) % pool.length];
+          var fu = new Date(); fu.setDate(fu.getDate() + ((d + i) % 14) + 1);
           rows[i] = {
             opd: prev.opd, caseType: 'Old', department: prev.department, name: prev.name,
             age: prev.age, sex: prev.sex, address: prev.address,
             diagnosis: dx[(d + i + 3) % dx.length] + ' (review)',
             treatment: tx[(d + i + 2) % tx.length],
             phone: prev.phone,
-            followUp: ((d + i) % 6 === 0) ? (function () {
-              var f = new Date(); f.setDate(f.getDate() + ((d + i) % 12) + 1);
-              return f.getFullYear() + '-' + pad(f.getMonth() + 1) + '-' + pad(f.getDate());
-            })() : ''
+            followUp: ((d + i) % 4 === 0) ? (fu.getFullYear() + '-' + pad(fu.getMonth() + 1) + '-' + pad(fu.getDate())) : ''
           };
           continue;
         }
-        rows[i] = {
-          opd: String(++opd),
-          caseType: (i % 3 === 0) ? 'New' : 'Old',
+        opd = nextNo;
+        var made = {
+          opd: String(nextNo),
+          caseType: 'New',
           department: depts[di],
           name: names[(d + i * 3) % names.length],
           age: String(depts[di] === 'Pediatrics' ? 2 + ((d + i) % 12) : 18 + ((d * 3 + i * 5) % 60)),
           sex: sex,
-          address: ['Akota','Alkapuri','Gorwa','Karelibaug','Manjalpur'][(d + i) % 5],
+          address: ['Akota', 'Alkapuri', 'Gorwa', 'Karelibaug', 'Manjalpur'][(d + i) % 5],
           diagnosis: dx[(d + i) % dx.length],
           treatment: tx[(d + i) % tx.length],
           phone: '9' + String(700000000 + ((d * 37 + i * 911) % 99999999)).slice(0, 9),
@@ -531,8 +548,9 @@
               })()
             : ''
         };
+        rows[i] = made;
+        pool.push(made);
       }
-      for (var z = 0; z < count; z++) if (rows[z] && rows[z].opd && seen.indexOf(rows[z]) === -1) seen.push(rows[z]);
       while (rows.length < Math.max(DROWS, count + 1)) rows.push(Object.assign({}, ER));
       loc.entries[k] = { status: st, note: d === 5 ? 'Free camp — 40 screened' : '', rows: rows };
     }
@@ -544,7 +562,7 @@
   NS.tKey = todayKey; NS.mKey = mKey; NS.fmtDay = fmtDay; NS.fmtMonth = fmtMonth; NS.fmtMonthShort = fmtMonthShort;
   NS.hasD = hasD; NS.blankRows = blankRows; NS.ageYears = ageYears; NS.deptK = deptK; NS.debounce = debounce;
   NS.normaliseAge = normaliseAge; NS.dueFollowUps = dueFollowUps; NS.deptHistory = deptHistory; NS.DF_ALL = DF_ALL;
-  NS.patientHistory = patientHistory; NS.nextOpd = nextOpd; NS.ageLabel = ageLabel;
+  NS.patientHistory = patientHistory; NS.nextOpd = nextOpd; NS.ageLabel = ageLabel; NS.humanGap = humanGap;
   NS.ER = ER; NS.DF = DF; NS.DROWS = DROWS; NS.ST = ST; NS.SO = SO;
   NS.S = S;
   Object.defineProperty(NS, 'db', { get: function () { return DB; } });
