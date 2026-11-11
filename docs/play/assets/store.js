@@ -524,10 +524,36 @@
     setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
   }
 
+  function sha256Hex(text) {
+    if (!(window.crypto && window.crypto.subtle)) return Promise.resolve('');
+    var buf = new TextEncoder().encode(text);
+    return crypto.subtle.digest('SHA-256', buf).then(function (h) {
+      var b = new Uint8Array(h), out = '';
+      for (var i = 0; i < b.length; i++) out += ('0' + b[i].toString(16)).slice(-2);
+      return out;
+    }).catch(function () { return ''; });
+  }
+
+  /* A backup carries a SHA-256 of its own contents, so a truncated file is refused rather
+     than half-imported. Older backups without a checksum still open. */
   function exportJson() {
     saveNow();
-    download('opd-register-backup-' + todayKey() + '.json', JSON.stringify(DB, null, 2), 'application/json');
-    toast('Backup saved — every location, every month.');
+    var body = JSON.stringify(DB);
+    sha256Hex(body).then(function (sum) {
+      var payload = { app: 'opd-register', kind: 'backup', v: 1, exported: new Date().toISOString(), sha256: sum, data: DB };
+      download('opd-register-backup-' + todayKey() + '.json', JSON.stringify(payload, null, 2), 'application/json');
+      toast(sum ? 'Backup saved, with a checksum.' : 'Backup saved — every location, every month.');
+    });
+  }
+
+  /* verify a wrapped backup; resolve with the database inside it */
+  function openBackup(parsed) {
+    if (!parsed || parsed.kind !== 'backup' || !parsed.data) return Promise.resolve(parsed);
+    if (!parsed.sha256) return Promise.resolve(parsed.data);
+    return sha256Hex(JSON.stringify(parsed.data)).then(function (sum) {
+      if (sum && sum !== parsed.sha256) throw new Error('This backup is damaged: its checksum does not match. Nothing was imported.');
+      return parsed.data;
+    });
   }
 
   function importJson(file, done) {
@@ -560,13 +586,119 @@
     r.readAsText(file);
   }
 
+  /* ---------- CSV: enough of RFC 4180 to survive a spreadsheet ---------- */
+  function parseCsv(text) {
+    var rows = [], row = [], field = '', q = false, i = 0;
+    text = String(text || '').replace(/^\ufeff/, '');
+    while (i < text.length) {
+      var c = text[i];
+      if (q) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+          q = false; i++; continue;
+        }
+        field += c; i++; continue;
+      }
+      if (c === '"') { q = true; i++; continue; }
+      if (c === ',') { row.push(field); field = ''; i++; continue; }
+      if (c === '\r') { i++; continue; }
+      if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
+      field += c; i++;
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(function (r) { return r.some(function (x) { return String(x).trim() !== ''; }); });
+  }
+
+  /* which column is which, guessed from the header */
+  var CSV_HINTS = {
+    opd: /^(opd|opd ?no|opd ?number|reg(istration)? ?no|uhid|patient ?id)/i,
+    date: /^(date|visit ?date|day|dt)/i,
+    name: /^(name|patient|patient ?name|full ?name)/i,
+    age: /^(age|yrs|years|age ?\(y\))/i,
+    sex: /^(sex|gender|m\/f)/i,
+    department: /^(dept|department|speciality|specialty|unit)/i,
+    address: /^(address|area|village|town|city)/i,
+    diagnosis: /^(diagnosis|dx|complaint|complaints|presenting)/i,
+    treatment: /^(treatment|rx|advice|prescription|medicines?)/i,
+    phone: /^(phone|mobile|contact|cell)/i,
+    followUp: /^(follow ?up|next ?visit|review ?date)/i
+  };
+  function guessCsvMap(headers) {
+    var map = {};
+    Object.keys(CSV_HINTS).forEach(function (f) {
+      for (var i = 0; i < headers.length; i++) {
+        if (CSV_HINTS[f].test(String(headers[i]).trim())) { map[f] = i; return; }
+      }
+    });
+    return map;
+  }
+
+  function normSex(v) {
+    var s = String(v || '').trim().toLowerCase();
+    if (!s) return '';
+    if (/^(m|male|1|boy)$/.test(s)) return 'M';
+    if (/^(f|female|2|girl)$/.test(s)) return 'F';
+    if (/^(o|other|3)$/.test(s)) return 'O';
+    return '';
+  }
+  function normDate(v, fallback) {
+    var s = String(v || '').trim();
+    if (!s) return fallback;
+    var m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+    if (m) {
+      var y = +m[3]; if (y < 100) y += (y > 30 ? 1900 : 2000);
+      return y + '-' + pad(+m[2]) + '-' + pad(+m[1]);
+    }
+    var m2 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m2) return m2[1] + '-' + pad(+m2[2]) + '-' + pad(+m2[3]);
+    return fallback;
+  }
+
+  /* turn mapped CSV rows into a database that the normal import path can take */
+  function csvToDB(text, map, opts) {
+    opts = opts || {};
+    var rows = parseCsv(text);
+    if (!rows.length) return { db: null, rows: 0, skipped: 0 };
+    var start = opts.header === false ? 0 : 1;
+    var fallbackDay = opts.day || todayKey();
+    var loc = opts.location || DB.current;
+    var db = { version: 3, current: loc, locations: {} };
+    db.locations[loc] = { entries: {} };
+    var used = 0, skipped = 0;
+    for (var i = start; i < rows.length; i++) {
+      var r = rows[i];
+      var get = function (f) { var idx = map[f]; return idx == null || idx < 0 ? '' : String(r[idx] == null ? '' : r[idx]).trim(); };
+      var day = normDate(get('date'), fallbackDay);
+      var patient = {
+        opd: get('opd'), caseType: 'New', department: get('department'), name: get('name'),
+        age: normaliseAge(get('age')), sex: normSex(get('sex')), address: get('address'),
+        diagnosis: get('diagnosis'), treatment: get('treatment'), phone: get('phone'),
+        followUp: get('followUp') ? normDate(get('followUp'), '') : ''
+      };
+      if (!hasD(patient)) { skipped++; continue; }
+      if (!db.locations[loc].entries[day]) db.locations[loc].entries[day] = { status: 'working', note: '', rows: [] };
+      db.locations[loc].entries[day].rows.push(patient);
+      used++;
+    }
+    Object.keys(db.locations[loc].entries).forEach(function (k) {
+      var e = db.locations[loc].entries[k];
+      while (e.rows.length < DROWS) e.rows.push(Object.assign({}, ER));
+    });
+    return { db: db, rows: used, skipped: skipped, days: Object.keys(db.locations[loc].entries).length };
+  }
+
   /* ---------- merging an imported file into what is here ----------
      Replace is the default and the honest one for a restore. Merge is for the case that
      actually happens: two phones, one register. Same OPD number and name on the same day
      is treated as the same patient and is not duplicated. */
-  function mergeDB(target, incoming, dry) {
+  function mergeDB(target, incoming, opts) {
+    if (opts === true) opts = { dry: true };        /* the old boolean signature */
+    opts = opts || {};
+    var dry = !!opts.dry;
+    var prefer = opts.prefer === 'incoming' ? 'incoming' : 'local';
     var base = dry ? JSON.parse(JSON.stringify(target)) : target;
-    var stats = { locationsAdded: 0, daysAdded: 0, daysMerged: 0, rowsAdded: 0, rowsSkipped: 0, rowsToppedUp: 0 };
+    var stats = { locationsAdded: 0, daysAdded: 0, daysMerged: 0, rowsAdded: 0, rowsSkipped: 0, rowsToppedUp: 0,
+                  conflicts: [], addedKeys: [] };
     var T = base.locations, I = incoming.locations || {};
     Object.keys(I).forEach(function (ln) {
       if (!T[ln]) { if (!dry) T[ln] = { entries: {} }; stats.locationsAdded++; }
@@ -578,7 +710,11 @@
         var src = ie[k] || {}, dst = te[k];
         if (!dst) {
           stats.daysAdded++;
-          stats.rowsAdded += (src.rows || []).filter(hasD).length;
+          var fresh = (src.rows || []).filter(hasD);
+          stats.rowsAdded += fresh.length;
+          fresh.forEach(function (r) {
+            if (stats.addedKeys.length < 2000) stats.addedKeys.push(ln + '|' + k + '|' + String(r.opd || '').trim());
+          });
           if (!dry) te[k] = JSON.parse(JSON.stringify(src));
           return;
         }
@@ -601,15 +737,24 @@
           })[0] : null;
 
           if (same) {
-            /* the same patient on the same day: fill what is empty here, never overwrite */
-            var filled = 0;
+            /* the same patient on the same day: fill what is empty here. When both sides have
+               a value and they differ, that is a conflict — reported, and resolved the way the
+               caller asked (local wins unless told otherwise). */
+            var filled = 0, differs = [];
             DF_ALL.forEach(function (f) {
               var mine = String(same[f] == null ? '' : same[f]).trim();
               var theirs = String(r[f] == null ? '' : r[f]).trim();
-              if (!mine && theirs) { if (!dry) same[f] = r[f]; filled++; }
+              if (!mine && theirs) { if (!dry) same[f] = r[f]; filled++; return; }
+              if (mine && theirs && mine !== theirs) {
+                differs.push({ f: f, mine: same[f], theirs: r[f] });
+                if (prefer === 'incoming') { if (!dry) same[f] = r[f]; filled++; }
+              }
             });
+            if (differs.length) {
+              stats.conflicts.push({ loc: ln, day: k, opd: opd, name: r.name || '', fields: differs });
+            }
             if (filled) { stats.rowsToppedUp++; changed = true; }
-            else stats.rowsSkipped++;
+            else if (!differs.length) stats.rowsSkipped++;
             return;
           }
           var slot = rows.findIndex(function (x) { return !hasD(x); });
@@ -622,6 +767,7 @@
             rows.push(r);
           }
           stats.rowsAdded++; changed = true;
+          if (stats.addedKeys.length < 2000) stats.addedKeys.push(ln + '|' + k + '|' + String(r.opd || '').trim());
         });
         if (changed) stats.daysMerged++;
       });
@@ -632,6 +778,7 @@
       if (stats.rowsAdded) bits.push(stats.rowsAdded + ' patient(s) added');
       if (stats.rowsToppedUp) bits.push(stats.rowsToppedUp + ' topped up');
       if (stats.rowsSkipped) bits.push(stats.rowsSkipped + ' already here');
+      if (stats.conflicts.length) bits.push(stats.conflicts.length + ' differ');
       if (stats.daysAdded) bits.push(stats.daysAdded + ' day(s) added');
       return bits.length ? bits.join(', ') : 'nothing new';
     };
@@ -724,6 +871,7 @@
   NS.toast = toast; NS.bindToast = bindToast;
   NS.daySnapshot = daySnapshot; NS.restoreDay = restoreDay;
   NS.switchLoc = switchLoc; NS.addLoc = addLoc; NS.renameLoc = renameLoc; NS.delLoc = delLoc;
-  NS.download = download; NS.exportJson = exportJson; NS.importJson = importJson; NS.demoDB = demoDB;
-  NS.validDB = validDB; NS.mergeDB = mergeDB; NS.setDemo = setDemo; NS.isDemo = isDemo;
+  NS.download = download; NS.exportJson = exportJson; NS.openBackup = openBackup; NS.sha256Hex = sha256Hex; NS.importJson = importJson; NS.demoDB = demoDB;
+  NS.validDB = validDB; NS.mergeDB = mergeDB;
+  NS.parseCsv = parseCsv; NS.guessCsvMap = guessCsvMap; NS.csvToDB = csvToDB; NS.normDate = normDate; NS.setDemo = setDemo; NS.isDemo = isDemo;
 })(window.OPD = window.OPD || {});

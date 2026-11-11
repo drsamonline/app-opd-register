@@ -35,6 +35,9 @@ the printed week.
 
 **3.10.0** — import preview · undo an import · field-level merge · monthly target.
 
+**3.11.0** — CSV import with a column mapper · named merge conflicts with a choice ·
+"added by the last import" · checksummed backups.
+
 ## Next (small, high value)
 
 | Item | Why | Cost |

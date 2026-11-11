@@ -3,7 +3,7 @@
   'use strict';
   var $ = NS.$, esc = NS.esc;
 
-  var cache = null, cacheKey = '', sortMode = 'new';
+  var cache = null, cacheKey = '', sortMode = 'new', onlyLast = false;
 
   function index(allLoc) {
     var key = NS.db.current + '|' + allLoc;
@@ -51,6 +51,14 @@
     var rows = index(allLoc);
     var terms = q.split(/\s+/).filter(Boolean);
     var hits = terms.length ? rows.filter(function (r) { return terms.every(function (t) { return r.hay.indexOf(t) !== -1; }); }) : rows;
+    if (onlyLast) {
+      var keys = (NS.S.lastImport && NS.S.lastImport.keys) || [];
+      if (keys.length) {
+        var set = {};
+        keys.forEach(function (k) { set[k] = 1; });
+        hits = hits.filter(function (r) { return set[r.loc + '|' + r.date + '|' + String(r.opd || '').trim()]; });
+      }
+    }
     var sorted = hits.slice();
     if (sortMode === 'old') sorted.reverse();
     else if (sortMode === 'name') sorted.sort(function (a, b) { return (a.name || '\uffff').localeCompare(b.name || '\uffff'); });
@@ -60,10 +68,11 @@
       return String(a.opd).localeCompare(String(b.opd));
     });
     var limited = sorted.slice(0, 300);
+    refreshLastBtn();
     var sub = $('#searchSub');
-    if (sub) sub.textContent = terms.length
+    if (sub) sub.textContent = (onlyLast ? 'Added by the last import · ' : '') + (terms.length
       ? hits.length + ' match' + (hits.length === 1 ? '' : 'es') + (hits.length > 300 ? ' (first 300 shown)' : '') + (allLoc ? ' · all locations' : ' · ' + NS.db.current)
-      : rows.length + ' patient records' + (allLoc ? ' · all locations' : ' · ' + NS.db.current) + ' — newest first';
+      : rows.length + ' patient records' + (allLoc ? ' · all locations' : ' · ' + NS.db.current) + ' — newest first');
 
     if (!limited.length) {
       box.innerHTML = '<div class="empty"><b>' + (terms.length ? 'Nothing matches' : 'No patients yet') + '</b>' +
@@ -108,6 +117,16 @@
     NS.toast(hits.length + ' patient' + (hits.length === 1 ? '' : 's') + ' exported.');
   }
 
+  function refreshLastBtn() {
+    var b = $('#btnLastImport');
+    if (!b) return;
+    var n = ((NS.S.lastImport && NS.S.lastImport.keys) || []).length;
+    b.hidden = !n;
+    b.textContent = (onlyLast ? '✓ ' : '') + 'Added by the last import (' + n + ')';
+    b.style.borderColor = onlyLast ? 'var(--accent)' : '';
+    b.style.color = onlyLast ? 'var(--accent-d)' : '';
+  }
+
   function open(hit) {
     var loc = hit.dataset.loc, date = hit.dataset.date, i = +hit.dataset.i;
     if (loc !== NS.db.current) {
@@ -137,6 +156,8 @@
     }
     var chk = $('#searchAllLoc');
     if (chk) chk.addEventListener('change', render);
+    var lb = $('#btnLastImport');
+    if (lb) lb.addEventListener('click', function () { onlyLast = !onlyLast; render(); });
     var el = $('#btnExportList');
     if (el) el.addEventListener('click', exportList);
     var srt = $('#searchSort');
@@ -158,6 +179,7 @@
   }
 
   NS.renderSearch = render;
+  NS.resetLastFilter = function () { onlyLast = false; };
   NS.exportList = exportList;
   NS.bindSearch = bind;
 })(window.OPD = window.OPD || {});

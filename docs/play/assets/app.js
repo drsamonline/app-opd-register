@@ -272,6 +272,12 @@
           document.body.style.overflow = '';
           return;
         }
+        if ($('#csvDialog') && $('#csvDialog').classList.contains('on')) {
+          $('#csvDialog').classList.remove('on');
+          var sc2 = $('#dlgScrim'); if (sc2) sc2.classList.remove('on');
+          document.body.style.overflow = '';
+          return;
+        }
         if ($('#sheet').classList.contains('on')) { NS.closeSheet(); return; }
         if ($('#menu').classList.contains('on')) { closeMenu(); return; }
       }
@@ -344,6 +350,21 @@
             }).catch(function (e) { showLock(e && e.message ? e.message : 'Could not open that backup.'); });
             return;
           }
+
+          var db0 = null;
+          NS.openBackup(parsed).then(function (x) {
+            db0 = NS.validDB(x);
+            return NS.storage.del('vault');
+          }).then(function () {
+            var db = db0;
+            return NS.storage.put('db', db).then(function () {
+              NS.S.locked = false; NS.S.lockedNow = false; NS.S.lockChoice = 'off';
+              NS.settingsSave();
+              NS.adopt(db); hideLock(); start();
+              NS.toast('Restored from the backup. The lock is off.');
+            });
+          }).catch(function (e) { showLock(e && e.message ? e.message : 'That backup could not be read.'); });
+          return;
 
           var db = NS.validDB(parsed);
           NS.storage.del('vault').then(function () {
@@ -655,7 +676,7 @@
     }
 
     /* ---------- a preview, so nobody merges blind ---------- */
-    var pending = null;
+    var pending = null, pendingPref = null, addedKeys = [];
 
     function closeDialog() {
       var d = $('#importDialog');
@@ -665,7 +686,11 @@
       pending = null;
     }
     function openDialog(incoming, fileName) {
-      var dry = NS.mergeDB(NS.db, incoming, true);
+      /* one dialog at a time: a second one behind the first is a trap */
+      var cvd = $('#csvDialog');
+      if (cvd && cvd.classList.contains('on')) { cvd.classList.remove('on'); cvd.setAttribute('aria-hidden', 'true'); }
+      var prefer = 'local';
+      var dry = NS.mergeDB(NS.db, incoming, { dry: true, prefer: prefer });
       var here = 0;
       NS.locNames().forEach(function (n) {
         var E = NS.db.locations[n].entries || {};
@@ -680,20 +705,44 @@
         });
       });
 
-      $('#dlgBody').innerHTML =
-        '<p style="color:var(--muted)">' + NS.esc(fileName) + ' holds <b>' + fileLocs + '</b> location(s), ' +
-        Object.keys(fileMonths).length + ' month(s) and <b>' + fileRows + '</b> patient(s).</p>' +
-        '<table><thead><tr><th>If you merge</th><th class="n">Count</th></tr></thead><tbody>' +
-        '<tr><td>Locations added</td><td class="n">' + dry.locationsAdded + '</td></tr>' +
-        '<tr><td>Days added</td><td class="n">' + dry.daysAdded + '</td></tr>' +
-        '<tr><td>Patients added</td><td class="n">' + dry.rowsAdded + '</td></tr>' +
-        '<tr><td>Existing patients topped up (empty fields only)</td><td class="n">' + dry.rowsToppedUp + '</td></tr>' +
-        '<tr><td>Already here, nothing to add</td><td class="n">' + dry.rowsSkipped + '</td></tr>' +
-        '</tbody></table>' +
-        '<p style="margin-top:10px;color:var(--muted)">Merging never deletes. Replacing throws away the ' + here +
-        ' patient(s) currently on this device.</p>';
+      function body(pref) {
+        var d = pref === prefer ? dry : NS.mergeDB(NS.db, incoming, { dry: true, prefer: pref });
+        var conf = d.conflicts.slice(0, 5).map(function (c) {
+          return '<div class="conflict"><b>' + NS.esc(c.name || c.opd || 'patient') + '</b> · ' +
+            NS.esc(NS.fmtDay(c.day)) + ' · ' +
+            c.fields.map(function (f) {
+              return NS.esc(f.f) + ': ' + NS.esc(String(f.mine)) + ' → ' + NS.esc(String(f.theirs));
+            }).join(', ') + '</div>';
+        }).join('');
+        return '<p style="color:var(--muted)">' + NS.esc(fileName) + ' holds <b>' + fileLocs + '</b> location(s), ' +
+          Object.keys(fileMonths).length + ' month(s) and <b>' + fileRows + '</b> patient(s).</p>' +
+          '<table><thead><tr><th>If you merge</th><th class="n">Count</th></tr></thead><tbody>' +
+          '<tr><td>Locations added</td><td class="n">' + d.locationsAdded + '</td></tr>' +
+          '<tr><td>Days added</td><td class="n">' + d.daysAdded + '</td></tr>' +
+          '<tr><td>Patients added</td><td class="n">' + d.rowsAdded + '</td></tr>' +
+          '<tr><td>Existing patients topped up (empty fields only)</td><td class="n">' + d.rowsToppedUp + '</td></tr>' +
+          '<tr><td>Already here, nothing to add</td><td class="n">' + d.rowsSkipped + '</td></tr>' +
+          '<tr><td><b>Patients whose filled fields differ</b></td><td class="n" style="color:' +
+            (d.conflicts.length ? 'var(--warn)' : 'inherit') + '">' + d.conflicts.length + '</td></tr>' +
+          '</tbody></table>' +
+          conf + (d.conflicts.length > 5 ? '<p style="margin-top:6px;color:var(--muted)">+' + (d.conflicts.length - 5) + ' more</p>' : '') +
+          (d.conflicts.length ? '<div class="opt"><span style="color:var(--muted)">For those fields keep:</span>' +
+            '<label><input type="radio" name="prefer" value="local"' + (pref === 'local' ? ' checked' : '') + '> what is here</label>' +
+            '<label><input type="radio" name="prefer" value="incoming"' + (pref === 'incoming' ? ' checked' : '') + '> the file\'s</label></div>' : '') +
+          '<p style="margin-top:10px;color:var(--muted)">Merging never deletes. Replacing throws away the ' + here +
+          ' patient(s) currently on this device.</p>';
+      }
+
+      $('#dlgBody').innerHTML = body(prefer);
+      $('#dlgBody').addEventListener('change', function (ev) {
+        if (ev.target.name !== 'prefer') return;
+        prefer = ev.target.value;
+        $('#dlgBody').innerHTML = body(prefer);
+        $('#dlgBody').addEventListener('change', arguments.callee, { once: true });
+      });
 
       pending = incoming;
+      pendingPref = function () { return prefer; };
       var d = $('#importDialog');
       d.classList.add('on'); d.setAttribute('aria-hidden', 'false');
       var sc = $('#dlgScrim'); if (sc) sc.classList.add('on');
@@ -709,8 +758,9 @@
       var summary = '';
 
       if (mode === 'merge') {
-        var stats = NS.mergeDB(NS.db, incoming);
+        var stats = NS.mergeDB(NS.db, incoming, { prefer: pendingPref ? pendingPref() : 'local' });
         summary = stats.summary();
+        addedKeys = stats.addedKeys;
       } else {
         NS.db.locations = incoming.locations;
         NS.db.current = incoming.current;
@@ -723,7 +773,10 @@
       }
 
       NS.saveNow();
-      NS.S.lastImport = { when: when, mode: mode === 'merge' ? 'merged' : 'replaced', summary: summary };
+      NS.S.lastImport = {
+        when: when, mode: mode === 'merge' ? 'merged' : 'replaced', summary: summary,
+        keys: mode === 'merge' ? addedKeys : []
+      };
       NS.settingsSave();
       closeDialog();
       afterImport((mode === 'merge' ? 'Merged: ' : 'Replaced: ') + summary);
@@ -742,7 +795,12 @@
         var parsed;
         try { parsed = JSON.parse(r.result); } catch (e) { NS.toast('That file is not valid JSON.'); return; }
         if (parsed && parsed.kind === 'vault') { NS.toast('That is an encrypted backup — restore it from the lock screen.'); return; }
-        openDialog(NS.validDB(parsed), file.name || 'this file');
+        NS.openBackup(parsed).then(function (db) {
+          if (NS.resetLastFilter) NS.resetLastFilter();
+          openDialog(NS.validDB(db), file.name || 'this file');
+        }).catch(function (e) {
+          NS.toast(e && e.message ? e.message : 'That backup could not be verified.');
+        });
       };
       r.readAsText(file);
     }
@@ -759,6 +817,92 @@
     }
     wireImport('fileMerge');
     wireImport('fileImport');
+
+    /* ---------- a spreadsheet: map the columns, then the same preview ---------- */
+    var csvText = '', csvRows = [];
+
+    function openCsv(text, fileName) {
+      csvText = text;
+      csvRows = NS.parseCsv(text);
+      if (csvRows.length < 2) { NS.toast('That file has no rows to import.'); return; }
+      var headers = csvRows[0].map(function (h, i) { return String(h || '').trim() || ('Column ' + (i + 1)); });
+      var guess = NS.guessCsvMap(csvRows[0]);
+      var FIELDS = [
+        ['date', 'Date of visit'], ['opd', 'OPD no.'], ['name', 'Name'], ['age', 'Age'], ['sex', 'Sex'],
+        ['department', 'Department'], ['address', 'Address'], ['diagnosis', 'Diagnosis'],
+        ['treatment', 'Treatment'], ['phone', 'Mobile'], ['followUp', 'Follow-up']
+      ];
+      var opts = function (sel) {
+        return '<option value="-1">— not in the file —</option>' + headers.map(function (h, i) {
+          return '<option value="' + i + '"' + (sel === i ? ' selected' : '') + '>' + NS.esc(h) + '</option>';
+        }).join('');
+      };
+      $('#csvBody').innerHTML =
+        '<p style="color:var(--muted)">' + NS.esc(fileName) + ' · ' + (csvRows.length - 1) + ' row(s). ' +
+        'The columns were guessed from the header — correct anything that is wrong.</p>' +
+        '<div class="mapgrid">' + FIELDS.map(function (f) {
+          return '<label for="map-' + f[0] + '">' + f[1] + '</label><select id="map-' + f[0] + '" data-map="' + f[0] + '">' + opts(guess[f[0]]) + '</select>';
+        }).join('') + '</div>' +
+        '<div class="opt" style="margin-top:12px">' +
+        '<label>Rows without a date go to <input type="date" id="csvDay" value="' + NS.tKey() + '" style="height:30px;border:1px solid var(--line);border-radius:6px;padding:0 6px"/></label>' +
+        '<label><input type="checkbox" id="csvHeader" checked> first row is a header</label>' +
+        '</div>' +
+        '<div class="prev" id="csvPrev"></div>';
+
+      var d = $('#csvDialog');
+      d.classList.add('on'); d.setAttribute('aria-hidden', 'false');
+      var sc = $('#dlgScrim'); if (sc) sc.classList.add('on');
+      document.body.style.overflow = 'hidden';
+      csvPreview();
+      $('#csvBody').addEventListener('change', csvPreview);
+    }
+
+    function csvMap() {
+      var m = {};
+      NS.$$('#csvBody [data-map]').forEach(function (el) {
+        var v = parseInt(el.value, 10);
+        if (v >= 0) m[el.dataset.map] = v;
+      });
+      return m;
+    }
+    function csvPreview() {
+      var conv = NS.csvToDB(csvText, csvMap(), {
+        day: ($('#csvDay') || {}).value || NS.tKey(),
+        location: NS.db.current,
+        header: !$('#csvHeader') || $('#csvHeader').checked
+      });
+      var box = $('#csvPrev');
+      if (box) box.textContent = conv.rows
+        ? conv.rows + ' patient(s) will be read, across ' + conv.days + ' day(s)' + (conv.skipped ? ', ' + conv.skipped + ' empty row(s) skipped' : '') + '.'
+        : 'No row has enough in it to become a patient — map at least one clinical column.';
+      return conv;
+    }
+    function closeCsv() {
+      var d = $('#csvDialog');
+      if (d) { d.classList.remove('on'); d.setAttribute('aria-hidden', 'true'); }
+      var sc = $('#dlgScrim'); if (sc) sc.classList.remove('on');
+      document.body.style.overflow = '';
+    }
+
+    var csvInput = $('#fileCsv');
+    if (csvInput) csvInput.addEventListener('change', function (ev) {
+      var f = ev.target.files && ev.target.files[0];
+      if (!f) return;
+      var r = new FileReader();
+      r.onload = function () { openCsv(String(r.result || ''), f.name || 'the file'); };
+      r.readAsText(f);
+      ev.target.value = '';
+    });
+    ['#csvCancel', '#csvClose'].forEach(function (sel) {
+      var el = $(sel);
+      if (el) el.addEventListener('click', closeCsv);
+    });
+    if ($('#csvGo')) $('#csvGo').addEventListener('click', function () {
+      var conv = csvPreview();
+      if (!conv.rows) { NS.toast('Nothing to import — check the column mapping.'); return; }
+      closeCsv();
+      openDialog(NS.validDB(conv.db), (conv.rows + ' rows from a spreadsheet'));
+    });
 
     if ($('#dlgMerge')) {
       $('#dlgMerge').addEventListener('click', function () { applyImport('merge'); });

@@ -291,7 +291,7 @@ const dryIncoming = NS.validDB({ current: 'A', locations: { A: { entries: {
     { opd: '11', caseType: 'New', department: 'Surgery', name: 'Fresh', age: '20', sex: 'F', address: '', diagnosis: '', treatment: '' }
   ] }
 } } } });
-const dry = NS.mergeDB(dryTarget, dryIncoming, true);
+const dry = NS.mergeDB(dryTarget, dryIncoming, { dry: true });
 eq('dry run: counts the new patient', dry.rowsAdded, 1);
 eq('dry run: counts the top-up', dry.rowsToppedUp, 1);
 eq('dry run: leaves the target untouched', dryTarget.locations.A.entries['2026-07-01'].rows[0].age, '');
@@ -306,6 +306,67 @@ eq('merge: the note is taken', dryTarget.locations.A.entries['2026-07-01'].note,
 eq('merge: the holiday status is taken', dryTarget.locations.A.entries['2026-07-01'].status, 'holiday');
 eq('merge: the new patient is added', dryTarget.locations.A.entries['2026-07-01'].rows.filter(r => r.opd === '11').length, 1);
 ok('merge: a summary line is produced', /added/.test(wet.summary()), wet.summary());
+
+/* ---------- what an import brought in, so it can be found again ---------- */
+const kTarget = NS.validDB({ current: 'A', locations: { A: { entries: {
+  '2026-09-01': { status: 'working', note: '', rows: [] }
+} } } });
+const kIncoming = NS.validDB({ current: 'A', locations: { A: { entries: {
+  '2026-09-01': { status: 'working', note: '', rows: [
+    { opd: '61', caseType: 'New', department: 'Medicine', name: 'Into Existing', age: '30', sex: 'M', address: '', diagnosis: '', treatment: '' }
+  ] },
+  '2026-09-02': { status: 'working', note: '', rows: [
+    { opd: '62', caseType: 'New', department: 'Surgery', name: 'New Day', age: '40', sex: 'F', address: '', diagnosis: '', treatment: '' }
+  ] }
+} } } });
+const kStats = NS.mergeDB(kTarget, kIncoming);
+eq('keys: one per added patient', kStats.addedKeys.length, 2);
+ok('keys: they name the location, day and OPD', kStats.addedKeys.indexOf('A|2026-09-02|62') !== -1, kStats.addedKeys);
+
+/* ---------- a conflict is reported, not silently swallowed ---------- */
+const cTarget = NS.validDB({ current: 'A', locations: { A: { entries: {
+  '2026-08-01': { status: 'working', note: '', rows: [
+    { opd: '9', caseType: 'New', department: 'Medicine', name: 'Clash', age: '40', sex: 'M', address: '', diagnosis: 'Fever', treatment: '' }
+  ] }
+} } } });
+const cIncoming = NS.validDB({ current: 'A', locations: { A: { entries: {
+  '2026-08-01': { status: 'working', note: '', rows: [
+    { opd: '9', caseType: 'New', department: 'Medicine', name: 'Clash', age: '41', sex: 'M', address: '', diagnosis: 'Typhoid', treatment: 'Azithromycin' }
+  ] }
+} } } });
+const dryC = NS.mergeDB(cTarget, cIncoming, { dry: true });
+eq('conflict: one patient differs', dryC.conflicts.length, 1);
+eq('conflict: both differing fields are listed', dryC.conflicts[0].fields.map(f => f.f).sort(), ['age', 'diagnosis']);
+eq('conflict: the local value is kept by default', (function () {
+  NS.mergeDB(cTarget, cIncoming);
+  const r = cTarget.locations.A.entries['2026-08-01'].rows[0];
+  return [r.age, r.diagnosis, r.treatment];
+})(), ['40', 'Fever', 'Azithromycin']);
+eq('conflict: the file can win when asked', (function () {
+  const t2 = NS.validDB(JSON.parse(JSON.stringify(cTarget)));
+  t2.locations.A.entries['2026-08-01'].rows[0].diagnosis = 'Fever';
+  NS.mergeDB(t2, cIncoming, { prefer: 'incoming' });
+  return t2.locations.A.entries['2026-08-01'].rows[0].diagnosis;
+})(), 'Typhoid');
+
+/* ---------- CSV in, with a guessed map ---------- */
+const csv = 'Date,OPD No,Name,Age,Sex,Department,Diagnosis,Treatment\r\n' +
+  '04/05/2026,7001,"Patel, Ramesh",45,M,Medicine,"Fever, 3 days",Paracetamol\r\n' +
+  '04/05/2026,7002,Asha,8,F,Pediatrics,Cough,\r\n' +
+  ',7003,No Date,30,F,Medicine,,\r\n';
+const rows = NS.parseCsv(csv);
+eq('csv: four rows including the header', rows.length, 4);
+eq('csv: a quoted comma survives', rows[1][2], 'Patel, Ramesh');
+eq('csv: a quoted field with a comma survives', rows[1][6], 'Fever, 3 days');
+const map = NS.guessCsvMap(rows[0]);
+eq('csv: the header is guessed', [map.date, map.opd, map.name, map.age, map.sex, map.department, map.diagnosis, map.treatment], [0, 1, 2, 3, 4, 5, 6, 7]);
+const conv = NS.csvToDB(csv, map, { day: '2026-05-04' });
+eq('csv: every data row becomes a patient', conv.rows, 3);
+eq('csv: rows land on the right days', conv.days, 1);
+const firstRow = conv.db.locations[conv.db.current].entries['2026-05-04'].rows[0];
+eq('csv: the name is unquoted', firstRow.name, 'Patel, Ramesh');
+eq('csv: sex is normalised', firstRow.sex, 'M');
+eq('csv: the date is normalised', Object.keys(conv.db.locations[conv.db.current].entries)[0], '2026-05-04');
 
 /* ---------- lock handover ---------- */
 const keep = JSON.parse(JSON.stringify(NS.db));

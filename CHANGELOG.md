@@ -1,5 +1,33 @@
 # Changelog
 
+## 3.11.0 — 2026-11-12
+
+The register can now come from a spreadsheet, and it says when two copies disagree.
+
+### Added
+- **CSV import with a column mapper.** Pick a `.csv`, the header is guessed (date, OPD no.,
+  name, age, sex, department, address, diagnosis, treatment, mobile, follow-up), correct any
+  mapping, choose the day for rows with no date, and see how many patients will be read
+  before anything is touched. It then goes through the same preview as a JSON backup.
+- **Merge conflicts, named.** When both sides have a filled value that differs, the preview
+  lists the patient, the day and the field (`age: 24 → 99`), and offers *keep what is here*
+  or *take the file's* — instead of silently preferring one.
+- **"Added by the last import"** in the Patients view: one button that filters the list to
+  the patients the last merge brought in, because finding them again was a hunt.
+- **Checksummed backups.** An exported backup carries a SHA-256 of its contents; importing
+  verifies it and refuses a damaged file with a plain message. Older backups still open.
+
+### Fixed
+- A merge into a day that did not exist yet recorded no keys for its patients, so the
+  "added by the last import" filter would have come up empty for exactly the common case.
+- A second dialog could open behind an open one; opening the import preview now closes the
+  CSV mapper first.
+
+### Tests
+- 139 node checks (was 124) and 166 browser checks (was 156): CSV parsing (quoted commas,
+  CRLF, a date column, an empty date), the conflict list, the preference, checksum verify
+  and refusal, and the last-import filter.
+
 ## 3.10.0 — 2026-11-12
 
 The import story closed: see it, choose it, undo it — and a target that survives the year.

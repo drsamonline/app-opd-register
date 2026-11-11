@@ -817,6 +817,15 @@ tr.dragging td{opacity:.45}
 .dlgscrim.on{display:block}
 @media (max-width:560px){.dialog{top:auto;bottom:0;left:0;transform:none;width:100%;max-height:88dvh;border-radius:16px 16px 0 0}.dialog.on{display:flex}}
 
+.mapgrid{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;margin-top:8px}
+.mapgrid label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted-2)}
+.mapgrid select{height:30px;padding:0 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);font-size:12.5px;min-width:0}
+.dialog .db .prev{margin-top:12px;font-family:var(--f-mono);font-size:11px;background:var(--panel-2);border:1px solid var(--line);
+  border-radius:8px;padding:8px;overflow:auto;max-height:120px;white-space:pre;color:var(--muted)}
+.dialog .db .conflict{border-left:3px solid var(--warn);background:var(--warn-l);padding:8px 10px;border-radius:6px;margin-top:8px;font-size:12.5px}
+.dialog .db .opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12.5px}
+.dialog .db .opt label{display:flex;align-items:center;gap:6px;cursor:pointer}
+
 /* the lock screen */
 .notice{
   display:flex;align-items:center;gap:12px;flex-wrap:wrap;max-width:1560px;margin:0 auto 12px;
@@ -1155,6 +1164,7 @@ tr.dragging td{opacity:.45}
             <label class="chip" style="gap:6px">
               <input type="checkbox" id="searchAllLoc" style="accent-color:var(--accent)"/>All locations
             </label>
+            <button class="btn sm ghost" id="btnLastImport" hidden title="Show only the patients the last import brought in"></button>
             <button class="btn sm" id="btnExportList"><svg width="13" height="13"><use href="#i-down"/></svg>Export list</button>
             <label class="chip" style="gap:6px;cursor:default">
               <span style="color:var(--muted);font-weight:700">Sort</span>
@@ -1197,6 +1207,7 @@ tr.dragging td{opacity:.45}
                 <button class="btn" id="btnExportJson"><svg width="14" height="14"><use href="#i-down"/></svg>Export backup</button>
                 <label class="btn"><svg width="14" height="14"><use href="#i-up"/></svg>Merge a backup<input type="file" id="fileMerge" accept=".json,application/json" hidden/></label>
                 <label class="btn"><svg width="14" height="14"><use href="#i-up"/></svg>Replace with a backup<input type="file" id="fileImport" accept=".json,application/json" hidden/></label>
+                <label class="btn"><svg width="14" height="14"><use href="#i-up"/></svg>Import a spreadsheet<input type="file" id="fileCsv" accept=".csv,text/csv" hidden/></label>
                 <button class="btn" id="btnExportCsvAll">Export CSV</button>
               </div>
               <p style="font-size:12px;color:var(--muted)">A backup file holds every location and every month. <b>Merge</b> adds what is missing and keeps what is here; <b>Replace</b> throws the current register away and puts the file in its place.</p>
@@ -1408,6 +1419,15 @@ tr.dragging td{opacity:.45}
     <button class="btn ghost" id="dlgCancel">Cancel</button>
     <button class="btn" id="dlgReplace">Replace everything</button>
     <button class="btn primary" id="dlgMerge">Merge</button>
+  </div>
+</div>
+
+<div class="dialog" id="csvDialog" role="dialog" aria-modal="true" aria-labelledby="csvTitle" aria-hidden="true">
+  <div class="dh"><h2 id="csvTitle">Import a spreadsheet</h2><button class="btn icon ghost" id="csvClose" aria-label="Close"><svg width="17" height="17"><use href="#i-close"/></svg></button></div>
+  <div class="db" id="csvBody"></div>
+  <div class="df">
+    <button class="btn ghost" id="csvCancel">Cancel</button>
+    <button class="btn primary" id="csvGo">Read the rows</button>
   </div>
 </div>
 
@@ -2303,10 +2323,36 @@ tr.dragging td{opacity:.45}
     setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
   }
 
+  function sha256Hex(text) {
+    if (!(window.crypto && window.crypto.subtle)) return Promise.resolve('');
+    var buf = new TextEncoder().encode(text);
+    return crypto.subtle.digest('SHA-256', buf).then(function (h) {
+      var b = new Uint8Array(h), out = '';
+      for (var i = 0; i < b.length; i++) out += ('0' + b[i].toString(16)).slice(-2);
+      return out;
+    }).catch(function () { return ''; });
+  }
+
+  /* A backup carries a SHA-256 of its own contents, so a truncated file is refused rather
+     than half-imported. Older backups without a checksum still open. */
   function exportJson() {
     saveNow();
-    download('opd-register-backup-' + todayKey() + '.json', JSON.stringify(DB, null, 2), 'application/json');
-    toast('Backup saved — every location, every month.');
+    var body = JSON.stringify(DB);
+    sha256Hex(body).then(function (sum) {
+      var payload = { app: 'opd-register', kind: 'backup', v: 1, exported: new Date().toISOString(), sha256: sum, data: DB };
+      download('opd-register-backup-' + todayKey() + '.json', JSON.stringify(payload, null, 2), 'application/json');
+      toast(sum ? 'Backup saved, with a checksum.' : 'Backup saved — every location, every month.');
+    });
+  }
+
+  /* verify a wrapped backup; resolve with the database inside it */
+  function openBackup(parsed) {
+    if (!parsed || parsed.kind !== 'backup' || !parsed.data) return Promise.resolve(parsed);
+    if (!parsed.sha256) return Promise.resolve(parsed.data);
+    return sha256Hex(JSON.stringify(parsed.data)).then(function (sum) {
+      if (sum && sum !== parsed.sha256) throw new Error('This backup is damaged: its checksum does not match. Nothing was imported.');
+      return parsed.data;
+    });
   }
 
   function importJson(file, done) {
@@ -2339,13 +2385,119 @@ tr.dragging td{opacity:.45}
     r.readAsText(file);
   }
 
+  /* ---------- CSV: enough of RFC 4180 to survive a spreadsheet ---------- */
+  function parseCsv(text) {
+    var rows = [], row = [], field = '', q = false, i = 0;
+    text = String(text || '').replace(/^\ufeff/, '');
+    while (i < text.length) {
+      var c = text[i];
+      if (q) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+          q = false; i++; continue;
+        }
+        field += c; i++; continue;
+      }
+      if (c === '"') { q = true; i++; continue; }
+      if (c === ',') { row.push(field); field = ''; i++; continue; }
+      if (c === '\r') { i++; continue; }
+      if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
+      field += c; i++;
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(function (r) { return r.some(function (x) { return String(x).trim() !== ''; }); });
+  }
+
+  /* which column is which, guessed from the header */
+  var CSV_HINTS = {
+    opd: /^(opd|opd ?no|opd ?number|reg(istration)? ?no|uhid|patient ?id)/i,
+    date: /^(date|visit ?date|day|dt)/i,
+    name: /^(name|patient|patient ?name|full ?name)/i,
+    age: /^(age|yrs|years|age ?\(y\))/i,
+    sex: /^(sex|gender|m\/f)/i,
+    department: /^(dept|department|speciality|specialty|unit)/i,
+    address: /^(address|area|village|town|city)/i,
+    diagnosis: /^(diagnosis|dx|complaint|complaints|presenting)/i,
+    treatment: /^(treatment|rx|advice|prescription|medicines?)/i,
+    phone: /^(phone|mobile|contact|cell)/i,
+    followUp: /^(follow ?up|next ?visit|review ?date)/i
+  };
+  function guessCsvMap(headers) {
+    var map = {};
+    Object.keys(CSV_HINTS).forEach(function (f) {
+      for (var i = 0; i < headers.length; i++) {
+        if (CSV_HINTS[f].test(String(headers[i]).trim())) { map[f] = i; return; }
+      }
+    });
+    return map;
+  }
+
+  function normSex(v) {
+    var s = String(v || '').trim().toLowerCase();
+    if (!s) return '';
+    if (/^(m|male|1|boy)$/.test(s)) return 'M';
+    if (/^(f|female|2|girl)$/.test(s)) return 'F';
+    if (/^(o|other|3)$/.test(s)) return 'O';
+    return '';
+  }
+  function normDate(v, fallback) {
+    var s = String(v || '').trim();
+    if (!s) return fallback;
+    var m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+    if (m) {
+      var y = +m[3]; if (y < 100) y += (y > 30 ? 1900 : 2000);
+      return y + '-' + pad(+m[2]) + '-' + pad(+m[1]);
+    }
+    var m2 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m2) return m2[1] + '-' + pad(+m2[2]) + '-' + pad(+m2[3]);
+    return fallback;
+  }
+
+  /* turn mapped CSV rows into a database that the normal import path can take */
+  function csvToDB(text, map, opts) {
+    opts = opts || {};
+    var rows = parseCsv(text);
+    if (!rows.length) return { db: null, rows: 0, skipped: 0 };
+    var start = opts.header === false ? 0 : 1;
+    var fallbackDay = opts.day || todayKey();
+    var loc = opts.location || DB.current;
+    var db = { version: 3, current: loc, locations: {} };
+    db.locations[loc] = { entries: {} };
+    var used = 0, skipped = 0;
+    for (var i = start; i < rows.length; i++) {
+      var r = rows[i];
+      var get = function (f) { var idx = map[f]; return idx == null || idx < 0 ? '' : String(r[idx] == null ? '' : r[idx]).trim(); };
+      var day = normDate(get('date'), fallbackDay);
+      var patient = {
+        opd: get('opd'), caseType: 'New', department: get('department'), name: get('name'),
+        age: normaliseAge(get('age')), sex: normSex(get('sex')), address: get('address'),
+        diagnosis: get('diagnosis'), treatment: get('treatment'), phone: get('phone'),
+        followUp: get('followUp') ? normDate(get('followUp'), '') : ''
+      };
+      if (!hasD(patient)) { skipped++; continue; }
+      if (!db.locations[loc].entries[day]) db.locations[loc].entries[day] = { status: 'working', note: '', rows: [] };
+      db.locations[loc].entries[day].rows.push(patient);
+      used++;
+    }
+    Object.keys(db.locations[loc].entries).forEach(function (k) {
+      var e = db.locations[loc].entries[k];
+      while (e.rows.length < DROWS) e.rows.push(Object.assign({}, ER));
+    });
+    return { db: db, rows: used, skipped: skipped, days: Object.keys(db.locations[loc].entries).length };
+  }
+
   /* ---------- merging an imported file into what is here ----------
      Replace is the default and the honest one for a restore. Merge is for the case that
      actually happens: two phones, one register. Same OPD number and name on the same day
      is treated as the same patient and is not duplicated. */
-  function mergeDB(target, incoming, dry) {
+  function mergeDB(target, incoming, opts) {
+    if (opts === true) opts = { dry: true };        /* the old boolean signature */
+    opts = opts || {};
+    var dry = !!opts.dry;
+    var prefer = opts.prefer === 'incoming' ? 'incoming' : 'local';
     var base = dry ? JSON.parse(JSON.stringify(target)) : target;
-    var stats = { locationsAdded: 0, daysAdded: 0, daysMerged: 0, rowsAdded: 0, rowsSkipped: 0, rowsToppedUp: 0 };
+    var stats = { locationsAdded: 0, daysAdded: 0, daysMerged: 0, rowsAdded: 0, rowsSkipped: 0, rowsToppedUp: 0,
+                  conflicts: [], addedKeys: [] };
     var T = base.locations, I = incoming.locations || {};
     Object.keys(I).forEach(function (ln) {
       if (!T[ln]) { if (!dry) T[ln] = { entries: {} }; stats.locationsAdded++; }
@@ -2357,7 +2509,11 @@ tr.dragging td{opacity:.45}
         var src = ie[k] || {}, dst = te[k];
         if (!dst) {
           stats.daysAdded++;
-          stats.rowsAdded += (src.rows || []).filter(hasD).length;
+          var fresh = (src.rows || []).filter(hasD);
+          stats.rowsAdded += fresh.length;
+          fresh.forEach(function (r) {
+            if (stats.addedKeys.length < 2000) stats.addedKeys.push(ln + '|' + k + '|' + String(r.opd || '').trim());
+          });
           if (!dry) te[k] = JSON.parse(JSON.stringify(src));
           return;
         }
@@ -2380,15 +2536,24 @@ tr.dragging td{opacity:.45}
           })[0] : null;
 
           if (same) {
-            /* the same patient on the same day: fill what is empty here, never overwrite */
-            var filled = 0;
+            /* the same patient on the same day: fill what is empty here. When both sides have
+               a value and they differ, that is a conflict — reported, and resolved the way the
+               caller asked (local wins unless told otherwise). */
+            var filled = 0, differs = [];
             DF_ALL.forEach(function (f) {
               var mine = String(same[f] == null ? '' : same[f]).trim();
               var theirs = String(r[f] == null ? '' : r[f]).trim();
-              if (!mine && theirs) { if (!dry) same[f] = r[f]; filled++; }
+              if (!mine && theirs) { if (!dry) same[f] = r[f]; filled++; return; }
+              if (mine && theirs && mine !== theirs) {
+                differs.push({ f: f, mine: same[f], theirs: r[f] });
+                if (prefer === 'incoming') { if (!dry) same[f] = r[f]; filled++; }
+              }
             });
+            if (differs.length) {
+              stats.conflicts.push({ loc: ln, day: k, opd: opd, name: r.name || '', fields: differs });
+            }
             if (filled) { stats.rowsToppedUp++; changed = true; }
-            else stats.rowsSkipped++;
+            else if (!differs.length) stats.rowsSkipped++;
             return;
           }
           var slot = rows.findIndex(function (x) { return !hasD(x); });
@@ -2401,6 +2566,7 @@ tr.dragging td{opacity:.45}
             rows.push(r);
           }
           stats.rowsAdded++; changed = true;
+          if (stats.addedKeys.length < 2000) stats.addedKeys.push(ln + '|' + k + '|' + String(r.opd || '').trim());
         });
         if (changed) stats.daysMerged++;
       });
@@ -2411,6 +2577,7 @@ tr.dragging td{opacity:.45}
       if (stats.rowsAdded) bits.push(stats.rowsAdded + ' patient(s) added');
       if (stats.rowsToppedUp) bits.push(stats.rowsToppedUp + ' topped up');
       if (stats.rowsSkipped) bits.push(stats.rowsSkipped + ' already here');
+      if (stats.conflicts.length) bits.push(stats.conflicts.length + ' differ');
       if (stats.daysAdded) bits.push(stats.daysAdded + ' day(s) added');
       return bits.length ? bits.join(', ') : 'nothing new';
     };
@@ -2503,8 +2670,9 @@ tr.dragging td{opacity:.45}
   NS.toast = toast; NS.bindToast = bindToast;
   NS.daySnapshot = daySnapshot; NS.restoreDay = restoreDay;
   NS.switchLoc = switchLoc; NS.addLoc = addLoc; NS.renameLoc = renameLoc; NS.delLoc = delLoc;
-  NS.download = download; NS.exportJson = exportJson; NS.importJson = importJson; NS.demoDB = demoDB;
-  NS.validDB = validDB; NS.mergeDB = mergeDB; NS.setDemo = setDemo; NS.isDemo = isDemo;
+  NS.download = download; NS.exportJson = exportJson; NS.openBackup = openBackup; NS.sha256Hex = sha256Hex; NS.importJson = importJson; NS.demoDB = demoDB;
+  NS.validDB = validDB; NS.mergeDB = mergeDB;
+  NS.parseCsv = parseCsv; NS.guessCsvMap = guessCsvMap; NS.csvToDB = csvToDB; NS.normDate = normDate; NS.setDemo = setDemo; NS.isDemo = isDemo;
 })(window.OPD = window.OPD || {});
 
 </script>
@@ -4361,7 +4529,7 @@ tr.dragging td{opacity:.45}
   'use strict';
   var $ = NS.$, esc = NS.esc;
 
-  var cache = null, cacheKey = '', sortMode = 'new';
+  var cache = null, cacheKey = '', sortMode = 'new', onlyLast = false;
 
   function index(allLoc) {
     var key = NS.db.current + '|' + allLoc;
@@ -4409,6 +4577,14 @@ tr.dragging td{opacity:.45}
     var rows = index(allLoc);
     var terms = q.split(/\s+/).filter(Boolean);
     var hits = terms.length ? rows.filter(function (r) { return terms.every(function (t) { return r.hay.indexOf(t) !== -1; }); }) : rows;
+    if (onlyLast) {
+      var keys = (NS.S.lastImport && NS.S.lastImport.keys) || [];
+      if (keys.length) {
+        var set = {};
+        keys.forEach(function (k) { set[k] = 1; });
+        hits = hits.filter(function (r) { return set[r.loc + '|' + r.date + '|' + String(r.opd || '').trim()]; });
+      }
+    }
     var sorted = hits.slice();
     if (sortMode === 'old') sorted.reverse();
     else if (sortMode === 'name') sorted.sort(function (a, b) { return (a.name || '\uffff').localeCompare(b.name || '\uffff'); });
@@ -4418,10 +4594,11 @@ tr.dragging td{opacity:.45}
       return String(a.opd).localeCompare(String(b.opd));
     });
     var limited = sorted.slice(0, 300);
+    refreshLastBtn();
     var sub = $('#searchSub');
-    if (sub) sub.textContent = terms.length
+    if (sub) sub.textContent = (onlyLast ? 'Added by the last import · ' : '') + (terms.length
       ? hits.length + ' match' + (hits.length === 1 ? '' : 'es') + (hits.length > 300 ? ' (first 300 shown)' : '') + (allLoc ? ' · all locations' : ' · ' + NS.db.current)
-      : rows.length + ' patient records' + (allLoc ? ' · all locations' : ' · ' + NS.db.current) + ' — newest first';
+      : rows.length + ' patient records' + (allLoc ? ' · all locations' : ' · ' + NS.db.current) + ' — newest first');
 
     if (!limited.length) {
       box.innerHTML = '<div class="empty"><b>' + (terms.length ? 'Nothing matches' : 'No patients yet') + '</b>' +
@@ -4466,6 +4643,16 @@ tr.dragging td{opacity:.45}
     NS.toast(hits.length + ' patient' + (hits.length === 1 ? '' : 's') + ' exported.');
   }
 
+  function refreshLastBtn() {
+    var b = $('#btnLastImport');
+    if (!b) return;
+    var n = ((NS.S.lastImport && NS.S.lastImport.keys) || []).length;
+    b.hidden = !n;
+    b.textContent = (onlyLast ? '✓ ' : '') + 'Added by the last import (' + n + ')';
+    b.style.borderColor = onlyLast ? 'var(--accent)' : '';
+    b.style.color = onlyLast ? 'var(--accent-d)' : '';
+  }
+
   function open(hit) {
     var loc = hit.dataset.loc, date = hit.dataset.date, i = +hit.dataset.i;
     if (loc !== NS.db.current) {
@@ -4495,6 +4682,8 @@ tr.dragging td{opacity:.45}
     }
     var chk = $('#searchAllLoc');
     if (chk) chk.addEventListener('change', render);
+    var lb = $('#btnLastImport');
+    if (lb) lb.addEventListener('click', function () { onlyLast = !onlyLast; render(); });
     var el = $('#btnExportList');
     if (el) el.addEventListener('click', exportList);
     var srt = $('#searchSort');
@@ -4516,6 +4705,7 @@ tr.dragging td{opacity:.45}
   }
 
   NS.renderSearch = render;
+  NS.resetLastFilter = function () { onlyLast = false; };
   NS.exportList = exportList;
   NS.bindSearch = bind;
 })(window.OPD = window.OPD || {});
@@ -4796,6 +4986,12 @@ tr.dragging td{opacity:.45}
           document.body.style.overflow = '';
           return;
         }
+        if ($('#csvDialog') && $('#csvDialog').classList.contains('on')) {
+          $('#csvDialog').classList.remove('on');
+          var sc2 = $('#dlgScrim'); if (sc2) sc2.classList.remove('on');
+          document.body.style.overflow = '';
+          return;
+        }
         if ($('#sheet').classList.contains('on')) { NS.closeSheet(); return; }
         if ($('#menu').classList.contains('on')) { closeMenu(); return; }
       }
@@ -4868,6 +5064,21 @@ tr.dragging td{opacity:.45}
             }).catch(function (e) { showLock(e && e.message ? e.message : 'Could not open that backup.'); });
             return;
           }
+
+          var db0 = null;
+          NS.openBackup(parsed).then(function (x) {
+            db0 = NS.validDB(x);
+            return NS.storage.del('vault');
+          }).then(function () {
+            var db = db0;
+            return NS.storage.put('db', db).then(function () {
+              NS.S.locked = false; NS.S.lockedNow = false; NS.S.lockChoice = 'off';
+              NS.settingsSave();
+              NS.adopt(db); hideLock(); start();
+              NS.toast('Restored from the backup. The lock is off.');
+            });
+          }).catch(function (e) { showLock(e && e.message ? e.message : 'That backup could not be read.'); });
+          return;
 
           var db = NS.validDB(parsed);
           NS.storage.del('vault').then(function () {
@@ -5179,7 +5390,7 @@ tr.dragging td{opacity:.45}
     }
 
     /* ---------- a preview, so nobody merges blind ---------- */
-    var pending = null;
+    var pending = null, pendingPref = null, addedKeys = [];
 
     function closeDialog() {
       var d = $('#importDialog');
@@ -5189,7 +5400,11 @@ tr.dragging td{opacity:.45}
       pending = null;
     }
     function openDialog(incoming, fileName) {
-      var dry = NS.mergeDB(NS.db, incoming, true);
+      /* one dialog at a time: a second one behind the first is a trap */
+      var cvd = $('#csvDialog');
+      if (cvd && cvd.classList.contains('on')) { cvd.classList.remove('on'); cvd.setAttribute('aria-hidden', 'true'); }
+      var prefer = 'local';
+      var dry = NS.mergeDB(NS.db, incoming, { dry: true, prefer: prefer });
       var here = 0;
       NS.locNames().forEach(function (n) {
         var E = NS.db.locations[n].entries || {};
@@ -5204,20 +5419,44 @@ tr.dragging td{opacity:.45}
         });
       });
 
-      $('#dlgBody').innerHTML =
-        '<p style="color:var(--muted)">' + NS.esc(fileName) + ' holds <b>' + fileLocs + '</b> location(s), ' +
-        Object.keys(fileMonths).length + ' month(s) and <b>' + fileRows + '</b> patient(s).</p>' +
-        '<table><thead><tr><th>If you merge</th><th class="n">Count</th></tr></thead><tbody>' +
-        '<tr><td>Locations added</td><td class="n">' + dry.locationsAdded + '</td></tr>' +
-        '<tr><td>Days added</td><td class="n">' + dry.daysAdded + '</td></tr>' +
-        '<tr><td>Patients added</td><td class="n">' + dry.rowsAdded + '</td></tr>' +
-        '<tr><td>Existing patients topped up (empty fields only)</td><td class="n">' + dry.rowsToppedUp + '</td></tr>' +
-        '<tr><td>Already here, nothing to add</td><td class="n">' + dry.rowsSkipped + '</td></tr>' +
-        '</tbody></table>' +
-        '<p style="margin-top:10px;color:var(--muted)">Merging never deletes. Replacing throws away the ' + here +
-        ' patient(s) currently on this device.</p>';
+      function body(pref) {
+        var d = pref === prefer ? dry : NS.mergeDB(NS.db, incoming, { dry: true, prefer: pref });
+        var conf = d.conflicts.slice(0, 5).map(function (c) {
+          return '<div class="conflict"><b>' + NS.esc(c.name || c.opd || 'patient') + '</b> · ' +
+            NS.esc(NS.fmtDay(c.day)) + ' · ' +
+            c.fields.map(function (f) {
+              return NS.esc(f.f) + ': ' + NS.esc(String(f.mine)) + ' → ' + NS.esc(String(f.theirs));
+            }).join(', ') + '</div>';
+        }).join('');
+        return '<p style="color:var(--muted)">' + NS.esc(fileName) + ' holds <b>' + fileLocs + '</b> location(s), ' +
+          Object.keys(fileMonths).length + ' month(s) and <b>' + fileRows + '</b> patient(s).</p>' +
+          '<table><thead><tr><th>If you merge</th><th class="n">Count</th></tr></thead><tbody>' +
+          '<tr><td>Locations added</td><td class="n">' + d.locationsAdded + '</td></tr>' +
+          '<tr><td>Days added</td><td class="n">' + d.daysAdded + '</td></tr>' +
+          '<tr><td>Patients added</td><td class="n">' + d.rowsAdded + '</td></tr>' +
+          '<tr><td>Existing patients topped up (empty fields only)</td><td class="n">' + d.rowsToppedUp + '</td></tr>' +
+          '<tr><td>Already here, nothing to add</td><td class="n">' + d.rowsSkipped + '</td></tr>' +
+          '<tr><td><b>Patients whose filled fields differ</b></td><td class="n" style="color:' +
+            (d.conflicts.length ? 'var(--warn)' : 'inherit') + '">' + d.conflicts.length + '</td></tr>' +
+          '</tbody></table>' +
+          conf + (d.conflicts.length > 5 ? '<p style="margin-top:6px;color:var(--muted)">+' + (d.conflicts.length - 5) + ' more</p>' : '') +
+          (d.conflicts.length ? '<div class="opt"><span style="color:var(--muted)">For those fields keep:</span>' +
+            '<label><input type="radio" name="prefer" value="local"' + (pref === 'local' ? ' checked' : '') + '> what is here</label>' +
+            '<label><input type="radio" name="prefer" value="incoming"' + (pref === 'incoming' ? ' checked' : '') + '> the file\'s</label></div>' : '') +
+          '<p style="margin-top:10px;color:var(--muted)">Merging never deletes. Replacing throws away the ' + here +
+          ' patient(s) currently on this device.</p>';
+      }
+
+      $('#dlgBody').innerHTML = body(prefer);
+      $('#dlgBody').addEventListener('change', function (ev) {
+        if (ev.target.name !== 'prefer') return;
+        prefer = ev.target.value;
+        $('#dlgBody').innerHTML = body(prefer);
+        $('#dlgBody').addEventListener('change', arguments.callee, { once: true });
+      });
 
       pending = incoming;
+      pendingPref = function () { return prefer; };
       var d = $('#importDialog');
       d.classList.add('on'); d.setAttribute('aria-hidden', 'false');
       var sc = $('#dlgScrim'); if (sc) sc.classList.add('on');
@@ -5233,8 +5472,9 @@ tr.dragging td{opacity:.45}
       var summary = '';
 
       if (mode === 'merge') {
-        var stats = NS.mergeDB(NS.db, incoming);
+        var stats = NS.mergeDB(NS.db, incoming, { prefer: pendingPref ? pendingPref() : 'local' });
         summary = stats.summary();
+        addedKeys = stats.addedKeys;
       } else {
         NS.db.locations = incoming.locations;
         NS.db.current = incoming.current;
@@ -5247,7 +5487,10 @@ tr.dragging td{opacity:.45}
       }
 
       NS.saveNow();
-      NS.S.lastImport = { when: when, mode: mode === 'merge' ? 'merged' : 'replaced', summary: summary };
+      NS.S.lastImport = {
+        when: when, mode: mode === 'merge' ? 'merged' : 'replaced', summary: summary,
+        keys: mode === 'merge' ? addedKeys : []
+      };
       NS.settingsSave();
       closeDialog();
       afterImport((mode === 'merge' ? 'Merged: ' : 'Replaced: ') + summary);
@@ -5266,7 +5509,12 @@ tr.dragging td{opacity:.45}
         var parsed;
         try { parsed = JSON.parse(r.result); } catch (e) { NS.toast('That file is not valid JSON.'); return; }
         if (parsed && parsed.kind === 'vault') { NS.toast('That is an encrypted backup — restore it from the lock screen.'); return; }
-        openDialog(NS.validDB(parsed), file.name || 'this file');
+        NS.openBackup(parsed).then(function (db) {
+          if (NS.resetLastFilter) NS.resetLastFilter();
+          openDialog(NS.validDB(db), file.name || 'this file');
+        }).catch(function (e) {
+          NS.toast(e && e.message ? e.message : 'That backup could not be verified.');
+        });
       };
       r.readAsText(file);
     }
@@ -5283,6 +5531,92 @@ tr.dragging td{opacity:.45}
     }
     wireImport('fileMerge');
     wireImport('fileImport');
+
+    /* ---------- a spreadsheet: map the columns, then the same preview ---------- */
+    var csvText = '', csvRows = [];
+
+    function openCsv(text, fileName) {
+      csvText = text;
+      csvRows = NS.parseCsv(text);
+      if (csvRows.length < 2) { NS.toast('That file has no rows to import.'); return; }
+      var headers = csvRows[0].map(function (h, i) { return String(h || '').trim() || ('Column ' + (i + 1)); });
+      var guess = NS.guessCsvMap(csvRows[0]);
+      var FIELDS = [
+        ['date', 'Date of visit'], ['opd', 'OPD no.'], ['name', 'Name'], ['age', 'Age'], ['sex', 'Sex'],
+        ['department', 'Department'], ['address', 'Address'], ['diagnosis', 'Diagnosis'],
+        ['treatment', 'Treatment'], ['phone', 'Mobile'], ['followUp', 'Follow-up']
+      ];
+      var opts = function (sel) {
+        return '<option value="-1">— not in the file —</option>' + headers.map(function (h, i) {
+          return '<option value="' + i + '"' + (sel === i ? ' selected' : '') + '>' + NS.esc(h) + '</option>';
+        }).join('');
+      };
+      $('#csvBody').innerHTML =
+        '<p style="color:var(--muted)">' + NS.esc(fileName) + ' · ' + (csvRows.length - 1) + ' row(s). ' +
+        'The columns were guessed from the header — correct anything that is wrong.</p>' +
+        '<div class="mapgrid">' + FIELDS.map(function (f) {
+          return '<label for="map-' + f[0] + '">' + f[1] + '</label><select id="map-' + f[0] + '" data-map="' + f[0] + '">' + opts(guess[f[0]]) + '</select>';
+        }).join('') + '</div>' +
+        '<div class="opt" style="margin-top:12px">' +
+        '<label>Rows without a date go to <input type="date" id="csvDay" value="' + NS.tKey() + '" style="height:30px;border:1px solid var(--line);border-radius:6px;padding:0 6px"/></label>' +
+        '<label><input type="checkbox" id="csvHeader" checked> first row is a header</label>' +
+        '</div>' +
+        '<div class="prev" id="csvPrev"></div>';
+
+      var d = $('#csvDialog');
+      d.classList.add('on'); d.setAttribute('aria-hidden', 'false');
+      var sc = $('#dlgScrim'); if (sc) sc.classList.add('on');
+      document.body.style.overflow = 'hidden';
+      csvPreview();
+      $('#csvBody').addEventListener('change', csvPreview);
+    }
+
+    function csvMap() {
+      var m = {};
+      NS.$$('#csvBody [data-map]').forEach(function (el) {
+        var v = parseInt(el.value, 10);
+        if (v >= 0) m[el.dataset.map] = v;
+      });
+      return m;
+    }
+    function csvPreview() {
+      var conv = NS.csvToDB(csvText, csvMap(), {
+        day: ($('#csvDay') || {}).value || NS.tKey(),
+        location: NS.db.current,
+        header: !$('#csvHeader') || $('#csvHeader').checked
+      });
+      var box = $('#csvPrev');
+      if (box) box.textContent = conv.rows
+        ? conv.rows + ' patient(s) will be read, across ' + conv.days + ' day(s)' + (conv.skipped ? ', ' + conv.skipped + ' empty row(s) skipped' : '') + '.'
+        : 'No row has enough in it to become a patient — map at least one clinical column.';
+      return conv;
+    }
+    function closeCsv() {
+      var d = $('#csvDialog');
+      if (d) { d.classList.remove('on'); d.setAttribute('aria-hidden', 'true'); }
+      var sc = $('#dlgScrim'); if (sc) sc.classList.remove('on');
+      document.body.style.overflow = '';
+    }
+
+    var csvInput = $('#fileCsv');
+    if (csvInput) csvInput.addEventListener('change', function (ev) {
+      var f = ev.target.files && ev.target.files[0];
+      if (!f) return;
+      var r = new FileReader();
+      r.onload = function () { openCsv(String(r.result || ''), f.name || 'the file'); };
+      r.readAsText(f);
+      ev.target.value = '';
+    });
+    ['#csvCancel', '#csvClose'].forEach(function (sel) {
+      var el = $(sel);
+      if (el) el.addEventListener('click', closeCsv);
+    });
+    if ($('#csvGo')) $('#csvGo').addEventListener('click', function () {
+      var conv = csvPreview();
+      if (!conv.rows) { NS.toast('Nothing to import — check the column mapping.'); return; }
+      closeCsv();
+      openDialog(NS.validDB(conv.db), (conv.rows + ' rows from a spreadsheet'));
+    });
 
     if ($('#dlgMerge')) {
       $('#dlgMerge').addEventListener('click', function () { applyImport('merge'); });

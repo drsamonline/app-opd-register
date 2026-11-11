@@ -45,6 +45,8 @@ Screens at both widths: [`docs/assets/app-desktop.png`](docs/assets/app-desktop.
 [`docs/assets/app-lock-on.png`](docs/assets/app-lock-on.png) (the lock panel when on),
 [`docs/assets/app-year.png`](docs/assets/app-year.png) (the year on one screen),
 [`docs/assets/app-import.png`](docs/assets/app-import.png) (import: merge or replace),
+[`docs/assets/app-conflict.png`](docs/assets/app-conflict.png) (what differs, and which side wins),
+[`docs/assets/app-csv.png`](docs/assets/app-csv.png) (the spreadsheet column mapper),
 [`docs/assets/app-settings.png`](docs/assets/app-settings.png) (display, lock, storage),
 [`docs/assets/app-digest.png`](docs/assets/app-digest.png) (the printable digest) and
 [`docs/assets/app-stats.png`](docs/assets/app-stats.png). Badges are drawn locally by
@@ -56,7 +58,7 @@ badge service, because an offline-first app should not need the internet to desc
 `docs/play/index.html` is the whole app. No build step, no install, no dependencies.
 
 ```
-node tests/self-tests.js     # 124 checks, no browser needed (156 more run in a real browser)
+node tests/self-tests.js     # 139 checks, no browser needed (166 more run in a real browser)
 python3 scripts/build.py     # the single-file build -> dist/opd-register.html
 python3 scripts/badges.py    # the README badges
 ```
@@ -130,11 +132,17 @@ help) and here:
 `localStorage` automatically — the engine in use is shown in *About & help → This device*.
 
 No account, no analytics, no cookie, no network call. Clearing site data erases it, so
-**export a backup weekly**. Importing shows a **preview first**: what the file holds, and
-what merging would add, top up or skip. Then **Merge** adds what is missing — a location, a
-day, a patient — and fills empty fields of a patient who is already here (never overwriting
-one that is filled); **Replace** puts the file in place of everything. Both are undoable, and
-both say afterwards exactly what they did.
+**export a backup weekly** — the file carries a SHA-256 of its own contents, so a truncated
+one is refused instead of half-imported. Importing shows a **preview first**: what the file
+holds, what merging would add, top up or skip, and **which patients differ** — with the
+choice of keeping what is here or taking the file's version. **Merge** fills empty fields of
+a patient who is already here and never overwrites a filled one; **Replace** puts the file in
+place of everything. Both are undoable, both say what they did, and the patients a merge
+brought in can be found again from one button in *Patients*.
+
+**Import a spreadsheet.** A CSV gets a **column mapper**: the header is guessed, you correct
+it, rows without a date go to a day you choose, and the same preview follows. Quoted commas,
+CRLF and `dd/mm/yyyy` all survive.
 The file format is plain JSON and is compatible with the earlier v2 release.
 
 **Optional passphrase lock — offered once, never nagged.** On first open the app asks
@@ -167,7 +175,7 @@ dist/opd-register.html   the single-file build (generated)
 scripts/build.py         inlines css + js into the single file
 scripts/badges.py        draws docs/assets/badge-*.svg
 scripts/icons.py         renders the PWA icon set from icon.svg
-tests/self-tests.js      124 checks over the real source, no browser
+tests/self-tests.js      139 checks over the real source, no browser
 ```
 
 The app is six classic scripts in one namespace, not ES modules — so it also runs from
