@@ -41,3 +41,42 @@ jobs:
       pages: write
       actions: write
       id-token: write
+
+  # The kit builds the EXE, the APK and the Linux binary. It does not build the single
+  # HTML file — that one is ours, and it went stale the moment it was uploaded by hand.
+  # This job rebuilds it from the same commit and replaces it on the same release.
+  html:
+    name: Single-file HTML
+    needs: app
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build
+        run: python3 scripts/build.py
+      - name: It must load nothing from another host
+        run: |
+          set -e
+          if grep -Eq '<(script|img|link|iframe)[^>]+(src|href)="https?://' dist/opd-register.html; then
+            echo "::error::the single-file build loads a resource from an external host"
+            exit 1
+          fi
+          ls -l dist/opd-register.html
+      # The asset name is the FILE name, not the label. Uploading dist/opd-register.html
+      # with a "#app-opd-register.html" label created a SECOND asset instead of replacing
+      # the first — so copy it to the name the release already uses, then clobber.
+      - name: Publish to the rolling release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          cp dist/opd-register.html dist/app-opd-register.html
+          gh release upload app-latest dist/app-opd-register.html --clobber --repo "${{ github.repository }}"
+          gh release view app-latest --repo "${{ github.repository }}" --json assets \
+            --jq '[.assets[].name] | join(", ")'
