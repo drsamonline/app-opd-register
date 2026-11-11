@@ -102,7 +102,8 @@
   /* ---------- state ---------- */
   var DB = null;
   var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {},
-            colOrder: 'default', target: 0, locked: false, lockedNow: false, lockChoice: '' };
+            colOrder: 'default', colOrderByLoc: {}, lockIdle: 10, target: 0,
+            locked: false, lockedNow: false, lockChoice: '' };
   var events = {};
   var saveState = 'saved';
 
@@ -148,6 +149,8 @@
         if (st.theme === 'dark' || st.theme === 'light') S.theme = st.theme;
         if (st.filter) S.filter = st.filter;
         if (st.colOrder) S.colOrder = st.colOrder;
+        if (st.colOrderByLoc && typeof st.colOrderByLoc === 'object') S.colOrderByLoc = st.colOrderByLoc;
+        if (typeof st.lockIdle === 'number') S.lockIdle = st.lockIdle;
         if (typeof st.target === 'number') S.target = st.target;
         if (st.lockChoice === 'on' || st.lockChoice === 'off') S.lockChoice = st.lockChoice;
       }
@@ -190,7 +193,10 @@
 
   function settingsSave() {
     try {
-      localStorage.setItem(KS, JSON.stringify({ theme: S.theme, filter: S.filter, colOrder: S.colOrder, target: S.target, lockChoice: S.lockChoice }));
+      localStorage.setItem(KS, JSON.stringify({
+        theme: S.theme, filter: S.filter, colOrder: S.colOrder, colOrderByLoc: S.colOrderByLoc,
+        lockIdle: S.lockIdle, target: S.target, lockChoice: S.lockChoice
+      }));
     } catch (e) {}
   }
 
@@ -462,8 +468,14 @@
   }
 
   /* ---------- locations ---------- */
+  function locOrder(name) {
+    var o = S.colOrderByLoc[name];
+    return o || S.colOrder || 'default';
+  }
+
   function switchLoc(name) {
     if (!name || !DB.locations[name] || name === DB.current) return;
+    S.colOrder = locOrder(name);
     saveNow();
     DB.current = name;
     saveNow();
@@ -624,7 +636,7 @@
   Object.defineProperty(NS, 'db', { get: function () { return DB; } });
   NS.load = load; NS.adopt = adopt; NS.forget = forget; NS.saveNow = saveNow; NS.sched = sched; NS.settingsSave = settingsSave;
   NS.setSaveState = setSaveState; NS.bytes = bytes; NS.humanSize = humanSize;
-  NS.ent = ent; NS.locNames = locNames; NS.ensureD = ensureD; NS.ensureM = ensureM;
+  NS.ent = ent; NS.locNames = locNames; NS.locOrder = locOrder; NS.ensureD = ensureD; NS.ensureM = ensureM;
   NS.cnt = cnt; NS.monthCount = monthCount; NS.rowsOfDay = rowsOfDay;
   NS.allCases = allCases; NS.recentCases = recentCases; NS.findCase = findCase;
   NS.on = on; NS.emit = emit;

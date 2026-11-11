@@ -42,6 +42,7 @@ Screens at both widths: [`docs/assets/app-desktop.png`](docs/assets/app-desktop.
 [`docs/assets/app-columns.png`](docs/assets/app-columns.png) (Treatment-before-Diagnosis),
 [`docs/assets/app-notice.png`](docs/assets/app-notice.png) (the one-time offer),
 [`docs/assets/app-lock.png`](docs/assets/app-lock.png) (the lock screen),
+[`docs/assets/app-lock-on.png`](docs/assets/app-lock-on.png) (the lock panel when on),
 [`docs/assets/app-settings.png`](docs/assets/app-settings.png) (display, lock, storage),
 [`docs/assets/app-digest.png`](docs/assets/app-digest.png) (the printable digest) and
 [`docs/assets/app-stats.png`](docs/assets/app-stats.png). Badges are drawn locally by
@@ -135,6 +136,11 @@ remembered on that device and changes nothing else; the offer never comes back o
 and the way to change your mind is always in the ⋯ menu (*Lock & privacy*) and in
 *About & help → Lock*. Forgot the passphrase? The lock screen offers to start again from a
 backup file, and says plainly that the encrypted register is deleted if you do.
+
+**Auto-lock** closes it again: *About & help → Lock → Lock automatically when idle* (never,
+1, 5, 10 or 30 minutes) drops the key from memory and shows the lock screen. **An encrypted
+backup** can be downloaded from the same panel — it is the ciphertext, so it is useless
+without the passphrase and can be restored on another machine, plain backup or encrypted.
 
 Turning the lock on encrypts the whole register with
 AES-GCM-256, keyed from your passphrase through PBKDF2-HMAC-SHA256 (310,000 iterations, a

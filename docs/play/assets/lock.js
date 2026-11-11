@@ -146,6 +146,40 @@
 
   function isUnlocked() { return !isLocked() || (!!enc && !NS.S.lockedNow); }
 
+  /* ---------- a backup you can carry ----------
+     A plain JSON backup of an encrypted register would defeat the lock, so the export is the
+     ciphertext itself: useless without the passphrase, restorable on another device. */
+  function exportVault() {
+    return NS.storage.get('vault').then(function (rec) {
+      if (!rec) throw new Error('This register is not locked, so there is no encrypted backup to make.');
+      return {
+        app: 'opd-register', kind: 'vault', v: 1,
+        note: 'Encrypted OPD register. Needs the passphrase that created it.',
+        exported: new Date().toISOString(),
+        vault: rec
+      };
+    });
+  }
+
+  /* the same, from text, so it can be tested without a file input */
+  function openVaultText(text, pass) {
+    var parsed;
+    try { parsed = JSON.parse(text); } catch (e) { return Promise.reject(new Error('That file is not valid JSON.')); }
+    var rec = parsed && parsed.kind === 'vault' ? parsed.vault : (parsed && parsed.ct ? parsed : null);
+    if (!rec || !rec.ct || !rec.salt) return Promise.reject(new Error('That is not an encrypted OPD backup.'));
+    if (!pass) return Promise.reject(new Error('Enter the passphrase this backup was made with.'));
+    return derive(pass, unb64(rec.salt), rec.iter || ITER).then(function (key) {
+      return decrypt(key, rec).then(function (plain) {
+        var db;
+        try { db = JSON.parse(plain); } catch (e) { throw new Error('The backup is damaged.'); }
+        return db;
+      }).catch(function (e) {
+        if (e && /damaged/.test(e.message)) throw e;
+        throw new Error('That passphrase does not open this backup.');
+      });
+    });
+  }
+
   NS.lock = {
     supported: supported,
     enable: enable,
@@ -153,6 +187,8 @@
     unlock: unlock,
     save: save,
     lockNow: lockNow,
+    exportVault: exportVault,
+    openVaultText: openVaultText,
     isLocked: isLocked,
     isUnlocked: isUnlocked
   };

@@ -1189,7 +1189,7 @@ tr.dragging td{opacity:.45}
           <div class="pb">
             <div class="doc" style="gap:12px">
               <div class="field">
-                <label for="setCols">Register column order</label>
+                <label for="setCols">Register column order <span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted-2)">— for the current location</span></label>
                 <select id="setCols">
                   <option value="default">Default — diagnosis, then treatment</option>
                   <option value="treat">Treatment first</option>
@@ -1216,7 +1216,18 @@ tr.dragging td{opacity:.45}
                 <button class="btn primary" id="btnLockOn">Turn on the lock</button>
               </div>
               <div id="lockOffBox" style="display:none;flex-direction:column;gap:8px">
+                <div class="field">
+                  <label for="setIdle">Lock automatically when idle</label>
+                  <select id="setIdle">
+                    <option value="0">Never</option>
+                    <option value="1">After 1 minute</option>
+                    <option value="5">After 5 minutes</option>
+                    <option value="10">After 10 minutes</option>
+                    <option value="30">After 30 minutes</option>
+                  </select>
+                </div>
                 <div class="field"><label for="lockOffPass">Passphrase</label><input id="lockOffPass" type="password" autocomplete="current-password"/></div>
+                <button class="btn" id="btnVaultExport">Download an encrypted backup</button>
                 <div style="display:flex;gap:8px;flex-wrap:wrap">
                   <button class="btn" id="btnLockNow">Lock now</button>
                   <button class="btn danger" id="btnLockOff">Turn off the lock</button>
@@ -1249,7 +1260,8 @@ tr.dragging td{opacity:.45}
             <div class="doc">
               <ul>
                 <li><b>Nothing leaves this device.</b> No account, no analytics, no network request.</li>
-                <li>Data lives in this browser's <code>localStorage</code>. Clearing site data erases it — keep a backup.</li>
+                <li>Data lives in this browser's <b>IndexedDB</b>. Clearing site data erases it — keep a backup.</li>
+                <li>The passphrase lock is <b>optional</b> and off unless you turn it on. It encrypts the register; skipping it changes nothing else.</li>
                 <li><b>PolyForm Noncommercial 1.0.0.</b> Free to use, study and share for noncommercial purposes.</li>
                 <li>Built by <b>Dr. Sohil Momin</b>. Source, releases and the full manual are on GitHub.</li>
               </ul>
@@ -1665,6 +1677,40 @@ tr.dragging td{opacity:.45}
 
   function isUnlocked() { return !isLocked() || (!!enc && !NS.S.lockedNow); }
 
+  /* ---------- a backup you can carry ----------
+     A plain JSON backup of an encrypted register would defeat the lock, so the export is the
+     ciphertext itself: useless without the passphrase, restorable on another device. */
+  function exportVault() {
+    return NS.storage.get('vault').then(function (rec) {
+      if (!rec) throw new Error('This register is not locked, so there is no encrypted backup to make.');
+      return {
+        app: 'opd-register', kind: 'vault', v: 1,
+        note: 'Encrypted OPD register. Needs the passphrase that created it.',
+        exported: new Date().toISOString(),
+        vault: rec
+      };
+    });
+  }
+
+  /* the same, from text, so it can be tested without a file input */
+  function openVaultText(text, pass) {
+    var parsed;
+    try { parsed = JSON.parse(text); } catch (e) { return Promise.reject(new Error('That file is not valid JSON.')); }
+    var rec = parsed && parsed.kind === 'vault' ? parsed.vault : (parsed && parsed.ct ? parsed : null);
+    if (!rec || !rec.ct || !rec.salt) return Promise.reject(new Error('That is not an encrypted OPD backup.'));
+    if (!pass) return Promise.reject(new Error('Enter the passphrase this backup was made with.'));
+    return derive(pass, unb64(rec.salt), rec.iter || ITER).then(function (key) {
+      return decrypt(key, rec).then(function (plain) {
+        var db;
+        try { db = JSON.parse(plain); } catch (e) { throw new Error('The backup is damaged.'); }
+        return db;
+      }).catch(function (e) {
+        if (e && /damaged/.test(e.message)) throw e;
+        throw new Error('That passphrase does not open this backup.');
+      });
+    });
+  }
+
   NS.lock = {
     supported: supported,
     enable: enable,
@@ -1672,6 +1718,8 @@ tr.dragging td{opacity:.45}
     unlock: unlock,
     save: save,
     lockNow: lockNow,
+    exportVault: exportVault,
+    openVaultText: openVaultText,
     isLocked: isLocked,
     isUnlocked: isUnlocked
   };
@@ -1783,7 +1831,8 @@ tr.dragging td{opacity:.45}
   /* ---------- state ---------- */
   var DB = null;
   var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {},
-            colOrder: 'default', target: 0, locked: false, lockedNow: false, lockChoice: '' };
+            colOrder: 'default', colOrderByLoc: {}, lockIdle: 10, target: 0,
+            locked: false, lockedNow: false, lockChoice: '' };
   var events = {};
   var saveState = 'saved';
 
@@ -1829,6 +1878,8 @@ tr.dragging td{opacity:.45}
         if (st.theme === 'dark' || st.theme === 'light') S.theme = st.theme;
         if (st.filter) S.filter = st.filter;
         if (st.colOrder) S.colOrder = st.colOrder;
+        if (st.colOrderByLoc && typeof st.colOrderByLoc === 'object') S.colOrderByLoc = st.colOrderByLoc;
+        if (typeof st.lockIdle === 'number') S.lockIdle = st.lockIdle;
         if (typeof st.target === 'number') S.target = st.target;
         if (st.lockChoice === 'on' || st.lockChoice === 'off') S.lockChoice = st.lockChoice;
       }
@@ -1871,7 +1922,10 @@ tr.dragging td{opacity:.45}
 
   function settingsSave() {
     try {
-      localStorage.setItem(KS, JSON.stringify({ theme: S.theme, filter: S.filter, colOrder: S.colOrder, target: S.target, lockChoice: S.lockChoice }));
+      localStorage.setItem(KS, JSON.stringify({
+        theme: S.theme, filter: S.filter, colOrder: S.colOrder, colOrderByLoc: S.colOrderByLoc,
+        lockIdle: S.lockIdle, target: S.target, lockChoice: S.lockChoice
+      }));
     } catch (e) {}
   }
 
@@ -2143,8 +2197,14 @@ tr.dragging td{opacity:.45}
   }
 
   /* ---------- locations ---------- */
+  function locOrder(name) {
+    var o = S.colOrderByLoc[name];
+    return o || S.colOrder || 'default';
+  }
+
   function switchLoc(name) {
     if (!name || !DB.locations[name] || name === DB.current) return;
+    S.colOrder = locOrder(name);
     saveNow();
     DB.current = name;
     saveNow();
@@ -2305,7 +2365,7 @@ tr.dragging td{opacity:.45}
   Object.defineProperty(NS, 'db', { get: function () { return DB; } });
   NS.load = load; NS.adopt = adopt; NS.forget = forget; NS.saveNow = saveNow; NS.sched = sched; NS.settingsSave = settingsSave;
   NS.setSaveState = setSaveState; NS.bytes = bytes; NS.humanSize = humanSize;
-  NS.ent = ent; NS.locNames = locNames; NS.ensureD = ensureD; NS.ensureM = ensureM;
+  NS.ent = ent; NS.locNames = locNames; NS.locOrder = locOrder; NS.ensureD = ensureD; NS.ensureM = ensureM;
   NS.cnt = cnt; NS.monthCount = monthCount; NS.rowsOfDay = rowsOfDay;
   NS.allCases = allCases; NS.recentCases = recentCases; NS.findCase = findCase;
   NS.on = on; NS.emit = emit;
@@ -4571,8 +4631,24 @@ tr.dragging td{opacity:.45}
         if (!f) return;
         var r = new FileReader();
         r.onload = function () {
-          var parsed;
-          try { parsed = JSON.parse(r.result); } catch (e) { showLock('That file is not valid JSON.'); return; }
+          var text = String(r.result || '');
+          var parsed = null;
+          try { parsed = JSON.parse(text); } catch (e) { showLock('That file is not valid JSON.'); return; }
+
+          /* an encrypted backup needs the passphrase already typed above */
+          if (parsed && parsed.kind === 'vault') {
+            var pass = $('#unlockPass').value;
+            NS.lock.openVaultText(text, pass).then(function (db) {
+              NS.S.locked = false; NS.S.lockedNow = false; NS.S.lockChoice = 'off';
+              NS.settingsSave();
+              NS.storage.del('vault').then(function () { return NS.storage.put('db', NS.validDB(db)); }).then(function () {
+                NS.adopt(db); hideLock(); start();
+                NS.toast('Restored from the encrypted backup. The lock is off.');
+              });
+            }).catch(function (e) { showLock(e && e.message ? e.message : 'Could not open that backup.'); });
+            return;
+          }
+
           var db = NS.validDB(parsed);
           NS.storage.del('vault').then(function () {
             return NS.storage.put('db', db);
@@ -4650,10 +4726,41 @@ tr.dragging td{opacity:.45}
     if (NS.S.locked) {
       state.innerHTML = '<p style="font-size:12.5px;color:var(--ok);font-weight:700">Encrypted with AES-GCM. Unlocked for this session.</p>';
       on.style.display = 'none'; off.style.display = 'flex';
+      var idleSel = $('#setIdle');
+      if (idleSel) idleSel.value = String(NS.S.lockIdle || 0);
     } else {
       state.innerHTML = '<p style="font-size:12.5px;color:var(--muted)">Off — the register is stored unencrypted in this browser.</p>';
       on.style.display = 'flex'; off.style.display = 'none';
     }
+  }
+
+  /* ---------- auto-lock when the machine is left alone ---------- */
+  var idleT = null;
+  function armIdle() {
+    clearTimeout(idleT);
+    if (!NS.S.locked || NS.S.lockedNow) return;
+    var min = Number(NS.S.lockIdle) || 0;
+    if (min <= 0) return;
+    idleT = setTimeout(lockIdleNow, Math.max(500, min * 60000));
+  }
+  function lockIdleNow() {
+    if (!NS.S.locked || NS.S.lockedNow) return;
+    NS.saveNow();
+    setTimeout(function () {
+      NS.lock.lockNow();
+      NS.forget();
+      if (NS.closeSheet) NS.closeSheet();
+      var m = $('#menu'); if (m) m.classList.remove('on');
+      showLock('Locked after ' + (Number(NS.S.lockIdle) || 0) + ' minutes idle.');
+    }, 250);
+  }
+  function bindIdle() {
+    ['pointerdown', 'keydown', 'wheel', 'touchstart', 'focus'].forEach(function (ev) {
+      document.addEventListener(ev, armIdle, { passive: true });
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') armIdle();
+    });
   }
 
   function bindLockPanel() {
@@ -4687,6 +4794,27 @@ tr.dragging td{opacity:.45}
         NS.toast(e && e.message ? e.message : 'That passphrase does not match.');
       }).then(function () { off.disabled = false; });
     });
+    var idle = $('#setIdle');
+    if (idle) {
+      idle.value = String(NS.S.lockIdle || 0);
+      idle.addEventListener('change', function () {
+        NS.S.lockIdle = Number(idle.value) || 0;
+        NS.settingsSave();
+        armIdle();
+        NS.toast(NS.S.lockIdle ? 'Locks after ' + NS.S.lockIdle + ' minutes idle.' : 'Auto-lock off.');
+      });
+    }
+
+    var vex = $('#btnVaultExport');
+    if (vex) vex.addEventListener('click', function () {
+      NS.lock.exportVault().then(function (rec) {
+        NS.download('opd-register-encrypted-' + NS.tKey() + '.json', JSON.stringify(rec, null, 2), 'application/json');
+        NS.toast('Encrypted backup saved — it needs the passphrase to open.');
+      }).catch(function (e) {
+        NS.toast(e && e.message ? e.message : 'Could not export the encrypted backup.');
+      });
+    });
+
     var now = $('#btnLockNow');
     if (now) now.addEventListener('click', function () {
       NS.saveNow();
@@ -4753,6 +4881,7 @@ tr.dragging td{opacity:.45}
     bindRange();
     bindLockPanel();
     bindNotice();
+    bindIdle();
     bindKeys();
 
     $$('#railNav button, #tabbar button').forEach(function (b) {
@@ -4783,12 +4912,14 @@ tr.dragging td{opacity:.45}
     $('#btnExportCsvAll').addEventListener('click', function () { NS.exportMonthCsv(NS.S.curM); });
     var sc = $('#setCols'), st = $('#setTarget');
     if (sc) {
-      sc.value = NS.S.colOrder;
+      sc.value = NS.locOrder ? NS.locOrder(NS.db.current) : NS.S.colOrder;
       sc.addEventListener('change', function () {
+        /* the preset belongs to this location: two centres, two habits */
         NS.S.colOrder = sc.value;
+        NS.S.colOrderByLoc[NS.db.current] = sc.value;
         NS.settingsSave();
         NS.renderRegister();
-        NS.toast('Column order saved.');
+        NS.toast('Column order saved for ' + NS.db.current + '.');
       });
     }
     if (st) {
@@ -4855,6 +4986,7 @@ tr.dragging td{opacity:.45}
     renderLocUI();
     updateStoreInfo();
     maybeShowNotice();
+    armIdle();
 
     var hash = (location.hash || '').replace('#', '');
     switchView(VIEWS.indexOf(hash) !== -1 ? hash : 'dash');

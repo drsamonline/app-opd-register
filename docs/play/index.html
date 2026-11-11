@@ -359,7 +359,7 @@
           <div class="pb">
             <div class="doc" style="gap:12px">
               <div class="field">
-                <label for="setCols">Register column order</label>
+                <label for="setCols">Register column order <span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted-2)">— for the current location</span></label>
                 <select id="setCols">
                   <option value="default">Default — diagnosis, then treatment</option>
                   <option value="treat">Treatment first</option>
@@ -386,7 +386,18 @@
                 <button class="btn primary" id="btnLockOn">Turn on the lock</button>
               </div>
               <div id="lockOffBox" style="display:none;flex-direction:column;gap:8px">
+                <div class="field">
+                  <label for="setIdle">Lock automatically when idle</label>
+                  <select id="setIdle">
+                    <option value="0">Never</option>
+                    <option value="1">After 1 minute</option>
+                    <option value="5">After 5 minutes</option>
+                    <option value="10">After 10 minutes</option>
+                    <option value="30">After 30 minutes</option>
+                  </select>
+                </div>
                 <div class="field"><label for="lockOffPass">Passphrase</label><input id="lockOffPass" type="password" autocomplete="current-password"/></div>
+                <button class="btn" id="btnVaultExport">Download an encrypted backup</button>
                 <div style="display:flex;gap:8px;flex-wrap:wrap">
                   <button class="btn" id="btnLockNow">Lock now</button>
                   <button class="btn danger" id="btnLockOff">Turn off the lock</button>
@@ -419,7 +430,8 @@
             <div class="doc">
               <ul>
                 <li><b>Nothing leaves this device.</b> No account, no analytics, no network request.</li>
-                <li>Data lives in this browser's <code>localStorage</code>. Clearing site data erases it — keep a backup.</li>
+                <li>Data lives in this browser's <b>IndexedDB</b>. Clearing site data erases it — keep a backup.</li>
+                <li>The passphrase lock is <b>optional</b> and off unless you turn it on. It encrypts the register; skipping it changes nothing else.</li>
                 <li><b>PolyForm Noncommercial 1.0.0.</b> Free to use, study and share for noncommercial purposes.</li>
                 <li>Built by <b>Dr. Sohil Momin</b>. Source, releases and the full manual are on GitHub.</li>
               </ul>

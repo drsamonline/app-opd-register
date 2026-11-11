@@ -1,5 +1,29 @@
 # Changelog
 
+## 3.8.0 — 2026-11-12
+
+The lock story closed: it closes itself, and it can leave the device encrypted.
+
+### Added
+- **Auto-lock when idle** — never, 1, 5, 10 or 30 minutes (10 by default, once the lock is
+  on). Any pointer, key, wheel or focus event re-arms it; when it fires, the register is
+  saved, the key is dropped, the sheet and menu are closed, and the lock screen says why.
+- **An encrypted backup** — *Download an encrypted backup* writes the vault itself: the
+  ciphertext, useless without the passphrase, restorable on another machine. A plain JSON
+  backup of a locked register would have been a hole in the lock, so it is not offered.
+- **Restoring an encrypted backup** — the lock screen's backup button now recognises a vault
+  file, asks for the passphrase already typed above, and restores it.
+- **A column order per location** — two centres, two habits. A new location inherits the
+  order in use at the time.
+
+### Fixed
+- The privacy panel still said the data lives in `localStorage`; it has been IndexedDB since
+  3.6.0. It now also says the lock is optional.
+
+### Tests
+- 137 browser checks (was 127): the encrypted backup round-trip (and that it contains no
+  patient names), a wrong passphrase on the backup, the idle lock, and per-location presets.
+
 ## 3.7.0 — 2026-11-11
 
 The lock stays optional, and saying no is a first-class answer.

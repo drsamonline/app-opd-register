@@ -315,8 +315,24 @@
         if (!f) return;
         var r = new FileReader();
         r.onload = function () {
-          var parsed;
-          try { parsed = JSON.parse(r.result); } catch (e) { showLock('That file is not valid JSON.'); return; }
+          var text = String(r.result || '');
+          var parsed = null;
+          try { parsed = JSON.parse(text); } catch (e) { showLock('That file is not valid JSON.'); return; }
+
+          /* an encrypted backup needs the passphrase already typed above */
+          if (parsed && parsed.kind === 'vault') {
+            var pass = $('#unlockPass').value;
+            NS.lock.openVaultText(text, pass).then(function (db) {
+              NS.S.locked = false; NS.S.lockedNow = false; NS.S.lockChoice = 'off';
+              NS.settingsSave();
+              NS.storage.del('vault').then(function () { return NS.storage.put('db', NS.validDB(db)); }).then(function () {
+                NS.adopt(db); hideLock(); start();
+                NS.toast('Restored from the encrypted backup. The lock is off.');
+              });
+            }).catch(function (e) { showLock(e && e.message ? e.message : 'Could not open that backup.'); });
+            return;
+          }
+
           var db = NS.validDB(parsed);
           NS.storage.del('vault').then(function () {
             return NS.storage.put('db', db);
@@ -394,10 +410,41 @@
     if (NS.S.locked) {
       state.innerHTML = '<p style="font-size:12.5px;color:var(--ok);font-weight:700">Encrypted with AES-GCM. Unlocked for this session.</p>';
       on.style.display = 'none'; off.style.display = 'flex';
+      var idleSel = $('#setIdle');
+      if (idleSel) idleSel.value = String(NS.S.lockIdle || 0);
     } else {
       state.innerHTML = '<p style="font-size:12.5px;color:var(--muted)">Off — the register is stored unencrypted in this browser.</p>';
       on.style.display = 'flex'; off.style.display = 'none';
     }
+  }
+
+  /* ---------- auto-lock when the machine is left alone ---------- */
+  var idleT = null;
+  function armIdle() {
+    clearTimeout(idleT);
+    if (!NS.S.locked || NS.S.lockedNow) return;
+    var min = Number(NS.S.lockIdle) || 0;
+    if (min <= 0) return;
+    idleT = setTimeout(lockIdleNow, Math.max(500, min * 60000));
+  }
+  function lockIdleNow() {
+    if (!NS.S.locked || NS.S.lockedNow) return;
+    NS.saveNow();
+    setTimeout(function () {
+      NS.lock.lockNow();
+      NS.forget();
+      if (NS.closeSheet) NS.closeSheet();
+      var m = $('#menu'); if (m) m.classList.remove('on');
+      showLock('Locked after ' + (Number(NS.S.lockIdle) || 0) + ' minutes idle.');
+    }, 250);
+  }
+  function bindIdle() {
+    ['pointerdown', 'keydown', 'wheel', 'touchstart', 'focus'].forEach(function (ev) {
+      document.addEventListener(ev, armIdle, { passive: true });
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') armIdle();
+    });
   }
 
   function bindLockPanel() {
@@ -431,6 +478,27 @@
         NS.toast(e && e.message ? e.message : 'That passphrase does not match.');
       }).then(function () { off.disabled = false; });
     });
+    var idle = $('#setIdle');
+    if (idle) {
+      idle.value = String(NS.S.lockIdle || 0);
+      idle.addEventListener('change', function () {
+        NS.S.lockIdle = Number(idle.value) || 0;
+        NS.settingsSave();
+        armIdle();
+        NS.toast(NS.S.lockIdle ? 'Locks after ' + NS.S.lockIdle + ' minutes idle.' : 'Auto-lock off.');
+      });
+    }
+
+    var vex = $('#btnVaultExport');
+    if (vex) vex.addEventListener('click', function () {
+      NS.lock.exportVault().then(function (rec) {
+        NS.download('opd-register-encrypted-' + NS.tKey() + '.json', JSON.stringify(rec, null, 2), 'application/json');
+        NS.toast('Encrypted backup saved — it needs the passphrase to open.');
+      }).catch(function (e) {
+        NS.toast(e && e.message ? e.message : 'Could not export the encrypted backup.');
+      });
+    });
+
     var now = $('#btnLockNow');
     if (now) now.addEventListener('click', function () {
       NS.saveNow();
@@ -497,6 +565,7 @@
     bindRange();
     bindLockPanel();
     bindNotice();
+    bindIdle();
     bindKeys();
 
     $$('#railNav button, #tabbar button').forEach(function (b) {
@@ -527,12 +596,14 @@
     $('#btnExportCsvAll').addEventListener('click', function () { NS.exportMonthCsv(NS.S.curM); });
     var sc = $('#setCols'), st = $('#setTarget');
     if (sc) {
-      sc.value = NS.S.colOrder;
+      sc.value = NS.locOrder ? NS.locOrder(NS.db.current) : NS.S.colOrder;
       sc.addEventListener('change', function () {
+        /* the preset belongs to this location: two centres, two habits */
         NS.S.colOrder = sc.value;
+        NS.S.colOrderByLoc[NS.db.current] = sc.value;
         NS.settingsSave();
         NS.renderRegister();
-        NS.toast('Column order saved.');
+        NS.toast('Column order saved for ' + NS.db.current + '.');
       });
     }
     if (st) {
@@ -599,6 +670,7 @@
     renderLocUI();
     updateStoreInfo();
     maybeShowNotice();
+    armIdle();
 
     var hash = (location.hash || '').replace('#', '');
     switchView(VIEWS.indexOf(hash) !== -1 ? hash : 'dash');

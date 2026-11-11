@@ -27,6 +27,9 @@ missing-diagnosis mode · export the patient list · undo a day-status change.
 **3.7.0** — the lock offered once with a real opt-out · menu shortcut · start-again-from-
 backup on the lock screen · settings restored at boot.
 
+**3.8.0** — auto-lock when idle · encrypted backup out and back in · column order per
+location.
+
 ## Next (small, high value)
 
 | Item | Why | Cost |
