@@ -40,6 +40,8 @@ Screens at both widths: [`docs/assets/app-desktop.png`](docs/assets/app-desktop.
 [`docs/assets/app-followups.png`](docs/assets/app-followups.png) (follow-ups due, by department),
 [`docs/assets/app-search.png`](docs/assets/app-search.png) (the patient list and its sort),
 [`docs/assets/app-columns.png`](docs/assets/app-columns.png) (Treatment-before-Diagnosis),
+[`docs/assets/app-lock.png`](docs/assets/app-lock.png) (the lock screen),
+[`docs/assets/app-settings.png`](docs/assets/app-settings.png) (display, lock, storage),
 [`docs/assets/app-digest.png`](docs/assets/app-digest.png) (the printable digest) and
 [`docs/assets/app-stats.png`](docs/assets/app-stats.png). Badges are drawn locally by
 `scripts/badges.py`; the icon set by `scripts/icons.py`. Nothing here is fetched from a
@@ -50,7 +52,7 @@ badge service, because an offline-first app should not need the internet to desc
 `docs/play/index.html` is the whole app. No build step, no install, no dependencies.
 
 ```
-node tests/self-tests.js     # 101 checks, no browser needed
+node tests/self-tests.js     # 106 checks, no browser needed (119 more run in a real browser)
 python3 scripts/build.py     # the single-file build -> dist/opd-register.html
 python3 scripts/badges.py    # the README badges
 ```
@@ -118,24 +120,33 @@ help) and here:
 
 ## Your data
 
-One `localStorage` key (`dailyEntryRegister.v2`) holds every location and every month. No
-account, no analytics, no cookie, no network call. Clearing site data erases it, so **export
-a backup weekly** — the import restores everything, including the location names. The file
-format is plain JSON and is compatible with the earlier v2 release of this app.
+**IndexedDB** holds every location and every month, in one record. A v2 register saved in
+`localStorage` is migrated in on first open, and a browser without IndexedDB falls back to
+`localStorage` automatically — the engine in use is shown in *About & help → This device*.
+
+No account, no analytics, no cookie, no network call. Clearing site data erases it, so
+**export a backup weekly** — the import restores everything, including the location names.
+The file format is plain JSON and is compatible with the earlier v2 release.
+
+**Optional passphrase lock.** *About & help → Lock* encrypts the whole register with
+AES-GCM-256, keyed from your passphrase through PBKDF2-HMAC-SHA256 (310,000 iterations, a
+random 16-byte salt). The plain copy is deleted only after the encrypted write succeeds, and
+the key is dropped from memory when you lock. A lost passphrase means a lost register — there
+is no recovery, by design, because a recovery path would be a second way in.
 
 ## Layout
 
 ```
 docs/index.html          the landing page — its own design, not the app's
 docs/play/               the app: index.html, assets/, sw.js, manifest, icons/
-docs/play/assets/        app.css · store.js · register.js · dashboard.js · stats.js · search.js · app.js
+docs/play/assets/        app.css · storage.js · lock.js · store.js · register.js · dashboard.js · stats.js · search.js · app.js
 docs/shot.png            the screenshot the pipeline captures
 docs/assets/             screenshots and the generated badges
 dist/opd-register.html   the single-file build (generated)
 scripts/build.py         inlines css + js into the single file
 scripts/badges.py        draws docs/assets/badge-*.svg
 scripts/icons.py         renders the PWA icon set from icon.svg
-tests/self-tests.js      101 checks over the real source, no browser
+tests/self-tests.js      106 checks over the real source, no browser
 ```
 
 The app is six classic scripts in one namespace, not ES modules — so it also runs from

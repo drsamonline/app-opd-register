@@ -6,7 +6,8 @@ will see the app load its own files and stop.
 
 ## What is stored, and where
 
-Your register is kept in this browser's `localStorage`, under one key:
+Your register is kept in this browser's **IndexedDB** (database `opd-register`), in one
+record. Browsers without IndexedDB fall back to `localStorage` under the key
 `dailyEntryRegister.v2`. It holds the patient rows you typed — OPD number, case type,
 department, name, age, sex, address, diagnosis, treatment — plus each day's status and note,
 the location names, and which month you were last looking at.
@@ -16,9 +17,13 @@ file wherever your browser puts downloads; what happens to that file is up to yo
 
 ## What that means in practice
 
-- **Anyone with the device and the browser profile can read the register.** It is not
-  encrypted at rest. Use the operating system's disk encryption and a screen lock if the
-  machine is shared.
+- **By default the register is not encrypted at rest.** Anyone with the device and the
+  browser profile can read it. Turn on the passphrase lock (*About & help → Lock*) to encrypt
+  it with AES-GCM-256; then the database on disk is ciphertext and the key exists only in
+  memory while unlocked. Either way, use the operating system's disk encryption and a screen
+  lock if the machine is shared.
+- **The passphrase cannot be recovered.** There is no reset link and no backdoor; that is the
+  point. Export a backup before you turn the lock on.
 - **Clearing site data deletes the register.** So does uninstalling the PWA with its data.
   Export a backup weekly; keep it somewhere you would keep the paper register.
 - **The demo** (`?demo=1`) is generated in memory and is never written to storage.

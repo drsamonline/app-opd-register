@@ -102,7 +102,7 @@
   /* ---------- state ---------- */
   var DB = null;
   var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {},
-            colOrder: 'default', target: 0 };
+            colOrder: 'default', target: 0, locked: false, lockedNow: false };
   var events = {};
   var saveState = 'saved';
 
@@ -135,22 +135,41 @@
     return defDB();
   }
 
+  var booted = false;
+
+  /* Load is asynchronous now: IndexedDB, the migration from localStorage, and the vault
+     all resolve before the first render. Returns 'locked' when a passphrase is needed. */
   function load() {
-    var raw = null;
-    try { raw = localStorage.getItem(K2); } catch (e) {}
-    if (!raw) { try { raw = localStorage.getItem(K1); } catch (e) {} }
-    var parsed = null;
-    if (raw) { try { parsed = JSON.parse(raw); } catch (e) { parsed = null; } }
-    DB = validDB(parsed);
-    try {
-      var st = JSON.parse(localStorage.getItem(KS) || '{}');
-      if (st && typeof st === 'object') {
-        if (st.theme === 'dark' || st.theme === 'light') S.theme = st.theme;
-        if (st.filter) S.filter = st.filter;
-        if (st.colOrder) S.colOrder = st.colOrder;
-        if (typeof st.target === 'number') S.target = st.target;
+    return NS.storage.init().then(function () {
+      return NS.storage.get('vault');
+    }).then(function (vault) {
+      if (vault) {
+        S.locked = true;
+        S.lockedNow = true;
+        DB = defDB();
+        return 'locked';
       }
-    } catch (e) {}
+      return NS.storage.readDb().then(function (r) {
+        DB = validDB(r.db);
+        if (r.source === 'ls' || r.source === 'mirror') {
+          /* one-time migration into the engine, and keep localStorage as it is */
+          NS.storage.put('db', DB);
+        }
+        booted = true;
+        return r.source;
+      });
+    });
+  }
+
+  /* drop the plain database from memory — used when the register is locked */
+  function forget() { DB = defDB(); return DB; }
+
+  /* after a successful unlock */
+  function adopt(db) {
+    DB = validDB(db);
+    S.lockedNow = false;
+    booted = true;
+    return DB;
   }
 
   function settingsSave() {
@@ -175,22 +194,16 @@
 
   function saveNow() {
     if (DEMO) { setSaveState('saved'); emit('saved'); return; }
+    if (S.locked && S.lockedNow) { setSaveState('err'); return; }  /* no key in memory: nothing may be written */
     setSaveState('busy');
-    try {
-      localStorage.setItem(K2, JSON.stringify(DB));
+    var p = (S.locked && NS.lock) ? NS.lock.save(DB) : NS.storage.put('db', DB);
+    p.then(function () {
       setSaveState('saved');
-    } catch (err) {
-      try {
-        prune();
-        localStorage.setItem(K2, JSON.stringify(DB));
-        setSaveState('saved');
-        toast('Storage was full — empty days were dropped to make room.');
-      } catch (e2) {
-        setSaveState('err');
-        toast('Could not save: this browser storage is full. Export a backup now.', 'Export', function () { NS.exportJson(); });
-      }
-    }
-    emit('saved');
+      emit('saved');
+    }).catch(function () {
+      setSaveState('err');
+      toast('Could not save to this browser. Export a backup now.', 'Export', function () { NS.exportJson(); });
+    });
   }
   var sched = debounce(saveNow, 250);
 
@@ -593,7 +606,7 @@
   NS.ER = ER; NS.DF = DF; NS.DROWS = DROWS; NS.ST = ST; NS.SO = SO;
   NS.S = S;
   Object.defineProperty(NS, 'db', { get: function () { return DB; } });
-  NS.load = load; NS.saveNow = saveNow; NS.sched = sched; NS.settingsSave = settingsSave;
+  NS.load = load; NS.adopt = adopt; NS.forget = forget; NS.saveNow = saveNow; NS.sched = sched; NS.settingsSave = settingsSave;
   NS.setSaveState = setSaveState; NS.bytes = bytes; NS.humanSize = humanSize;
   NS.ent = ent; NS.locNames = locNames; NS.ensureD = ensureD; NS.ensureM = ensureM;
   NS.cnt = cnt; NS.monthCount = monthCount; NS.rowsOfDay = rowsOfDay;

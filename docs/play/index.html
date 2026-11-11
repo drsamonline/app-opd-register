@@ -366,6 +366,28 @@
         </section>
 
         <section class="panel">
+          <div class="ph"><h2>Lock</h2></div>
+          <div class="pb">
+            <div class="doc" style="gap:10px">
+              <div id="lockState"></div>
+              <div id="lockOnBox" style="display:flex;flex-direction:column;gap:8px">
+                <div class="field"><label for="lockPass">New passphrase</label><input id="lockPass" type="password" autocomplete="new-password" placeholder="at least 6 characters"/></div>
+                <div class="field"><label for="lockPass2">Repeat it</label><input id="lockPass2" type="password" autocomplete="new-password"/></div>
+                <button class="btn primary" id="btnLockOn">Turn on the lock</button>
+              </div>
+              <div id="lockOffBox" style="display:none;flex-direction:column;gap:8px">
+                <div class="field"><label for="lockOffPass">Passphrase</label><input id="lockOffPass" type="password" autocomplete="current-password"/></div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="btn" id="btnLockNow">Lock now</button>
+                  <button class="btn danger" id="btnLockOff">Turn off the lock</button>
+                </div>
+              </div>
+              <p style="font-size:12px;color:var(--muted)">The whole register is encrypted with AES-GCM, keyed from your passphrase. A lost passphrase means a lost register — export a backup first, and keep it somewhere safe.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
           <div class="ph"><h2>Keyboard</h2></div>
           <div class="pb">
             <div class="doc">
@@ -470,6 +492,20 @@
   </div>
 </aside>
 
+<div class="lockwrap" id="lockWrap" hidden>
+  <form class="lockcard" id="lockForm" autocomplete="off">
+    <div class="lg">OPD</div>
+    <h2>This register is locked</h2>
+    <p>Enter the passphrase to open it. It is never sent anywhere and cannot be recovered — if it is lost, the register cannot be opened.</p>
+    <div class="field">
+      <label for="unlockPass">Passphrase</label>
+      <input id="unlockPass" type="password" autocomplete="current-password" placeholder="••••••••"/>
+    </div>
+    <button class="btn primary block" id="btnUnlock" type="submit">Unlock</button>
+    <p class="lerr" id="lockErr" hidden></p>
+  </form>
+</div>
+
 <div class="slip" id="slip" aria-hidden="true"></div>
 
 <div class="toast" id="toast"><span id="toastMsg"></span><button id="toastAct" hidden></button></div>
@@ -488,6 +524,8 @@
   <option value="Dentistry"></option>
 </datalist>
 
+<script src="assets/storage.js"></script>
+<script src="assets/lock.js"></script>
 <script src="assets/store.js"></script>
 <script src="assets/register.js"></script>
 <script src="assets/dashboard.js"></script>

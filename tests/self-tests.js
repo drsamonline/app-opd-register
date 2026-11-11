@@ -41,13 +41,32 @@ const sandbox = {
   }
 };
 sandbox.window = sandbox;
-sandbox.window.OPD = {};
+/* the storage layer is browser-only; the tests get a localStorage-backed shim with the
+   same contract, so the store's logic is exercised for real */
+const LS_KEYS = { db: 'dailyEntryRegister.v2', vault: 'opdRegister.vault', meta: 'opdRegister.meta', mirror: 'opdRegister.mirror' };
+const readKey = k => { try { return JSON.parse(localStorage.getItem(LS_KEYS[k] || k)); } catch (e) { return null; } };
+const writeKey = (k, v) => { try { localStorage.setItem(LS_KEYS[k] || k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+sandbox.window.OPD = {
+  storage: {
+    init: () => Promise.resolve('ls'),
+    ready: Promise.resolve('ls'),
+    get: k => Promise.resolve(readKey(k)),
+    put: (k, v) => Promise.resolve(writeKey(k, v)),
+    del: k => { try { localStorage.removeItem(LS_KEYS[k] || k); } catch (e) {} return Promise.resolve(true); },
+    readDb: () => Promise.resolve(readKey('db') ? { db: readKey('db'), source: 'ls' } : { db: null, source: 'none' }),
+    mirror: () => {},
+    clearMirror: () => {},
+    engine: () => 'ls',
+    keys: LS_KEYS
+  }
+};
 vm.createContext(sandbox);
 for (const f of ['store.js', 'dashboard.js']) {
   vm.runInContext(fs.readFileSync(path.join(APP, f), 'utf8'), sandbox, { filename: f });
 }
 const NS = sandbox.window.OPD;
 
+async function run() {
 /* ---------- age parsing ---------- */
 eq('age: plain number', NS.ageYears('34'), 34);
 eq('age: years suffix', NS.ageYears('5y'), 5);
@@ -120,7 +139,7 @@ const seed = {
   }
 };
 localStorage.setItem('dailyEntryRegister.v2', JSON.stringify(seed));
-NS.load();
+await NS.load();
 eq('load: reads the v2 key', NS.db.current, 'Clinic A');
 eq('load: both locations present', NS.locNames().length, 2);
 eq('load: locations sort alphabetically', NS.locNames(), ['Clinic A', 'Clinic B']);
@@ -233,6 +252,19 @@ eq('loc: adds one', NS.locNames().length, before + 1);
 NS.renameLoc('Clinic C', 'Clinic D');
 ok('loc: renames', NS.locNames().indexOf('Clinic D') !== -1 && NS.locNames().indexOf('Clinic C') === -1);
 
+/* ---------- lock handover ---------- */
+const keep = JSON.parse(JSON.stringify(NS.db));
+const keepLocs = NS.locNames().length, keepLoc = NS.db.current;
+NS.forget();
+eq('forget: a usable empty database remains', NS.locNames().length, 1);
+eq('forget: nothing of the old register is readable', NS.locNames().length < keepLocs || keepLocs === 1, true);
+NS.adopt(keep);
+eq('adopt: every location comes back', NS.locNames().length, keepLocs);
+eq('adopt: the current location survives', NS.db.current, keepLoc);
+eq('adopt: every entry of every location comes back',
+   JSON.stringify(Object.keys(NS.db.locations).map(k => Object.keys(NS.db.locations[k].entries).length)),
+   JSON.stringify(Object.keys(keep.locations).map(k => Object.keys(keep.locations[k].entries).length)));
+
 /* ---------- date helpers ---------- */
 eq('date: february length 2024 (leap)', NS.dim('2024-02'), 29);
 eq('date: february length 2026', NS.dim('2026-02'), 28);
@@ -245,6 +277,9 @@ eq('escape: angle brackets', NS.esc('<b>x</b>'), '&lt;b&gt;x&lt;/b&gt;');
 eq('escape: quotes', NS.esc('a"b\'c'), 'a&quot;b&#39;c');
 eq('escape: null is empty', NS.esc(null), '');
 
-/* ---------- report ---------- */
+
 console.log((fail ? '\n✗ ' : '\n✓ ') + pass + ' passed, ' + fail + ' failed');
 if (fail) { failures.forEach(f => console.log('  · ' + f)); process.exit(1); }
+}
+
+run().catch(function (e) { console.error(e); process.exit(1); });

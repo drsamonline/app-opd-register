@@ -787,6 +787,28 @@ tr.dragging td{opacity:.45}
   background:var(--panel);padding:0 3px;border-radius:3px;font-variant-numeric:tabular-nums;
 }
 
+/* the lock screen */
+.lockwrap{
+  position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:20px;
+  background:var(--bg);overflow:auto;
+}
+.lockwrap[hidden]{display:none!important}
+.lockcard{
+  width:min(400px,100%);background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:26px 22px;box-shadow:0 24px 60px -30px rgba(9,15,25,.4);display:flex;flex-direction:column;gap:12px;
+}
+.lockcard .lg{
+  width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:var(--accent);
+  color:#fff;font-weight:800;font-size:12px;letter-spacing:.4px;
+}
+.lockcard h2{font-size:17px;font-weight:750;letter-spacing:-.02em}
+.lockcard p{font-size:12.5px;color:var(--muted);line-height:1.5}
+.lockcard .lerr{color:var(--bad);font-weight:650;font-size:12.5px}
+.lockcard .btn{min-height:42px}
+
+/* let the browser skip layout and paint for days that are off screen */
+.day{content-visibility:auto;contain-intrinsic-size:auto 320px}
+
 /* ---------------- print ---------------- */
 @media print{
   :root{--bg:#fff;--panel:#fff;--line:#bbb;--line-2:#ddd}
@@ -1161,6 +1183,28 @@ tr.dragging td{opacity:.45}
         </section>
 
         <section class="panel">
+          <div class="ph"><h2>Lock</h2></div>
+          <div class="pb">
+            <div class="doc" style="gap:10px">
+              <div id="lockState"></div>
+              <div id="lockOnBox" style="display:flex;flex-direction:column;gap:8px">
+                <div class="field"><label for="lockPass">New passphrase</label><input id="lockPass" type="password" autocomplete="new-password" placeholder="at least 6 characters"/></div>
+                <div class="field"><label for="lockPass2">Repeat it</label><input id="lockPass2" type="password" autocomplete="new-password"/></div>
+                <button class="btn primary" id="btnLockOn">Turn on the lock</button>
+              </div>
+              <div id="lockOffBox" style="display:none;flex-direction:column;gap:8px">
+                <div class="field"><label for="lockOffPass">Passphrase</label><input id="lockOffPass" type="password" autocomplete="current-password"/></div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="btn" id="btnLockNow">Lock now</button>
+                  <button class="btn danger" id="btnLockOff">Turn off the lock</button>
+                </div>
+              </div>
+              <p style="font-size:12px;color:var(--muted)">The whole register is encrypted with AES-GCM, keyed from your passphrase. A lost passphrase means a lost register — export a backup first, and keep it somewhere safe.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
           <div class="ph"><h2>Keyboard</h2></div>
           <div class="pb">
             <div class="doc">
@@ -1265,6 +1309,20 @@ tr.dragging td{opacity:.45}
   </div>
 </aside>
 
+<div class="lockwrap" id="lockWrap" hidden>
+  <form class="lockcard" id="lockForm" autocomplete="off">
+    <div class="lg">OPD</div>
+    <h2>This register is locked</h2>
+    <p>Enter the passphrase to open it. It is never sent anywhere and cannot be recovered — if it is lost, the register cannot be opened.</p>
+    <div class="field">
+      <label for="unlockPass">Passphrase</label>
+      <input id="unlockPass" type="password" autocomplete="current-password" placeholder="••••••••"/>
+    </div>
+    <button class="btn primary block" id="btnUnlock" type="submit">Unlock</button>
+    <p class="lerr" id="lockErr" hidden></p>
+  </form>
+</div>
+
 <div class="slip" id="slip" aria-hidden="true"></div>
 
 <div class="toast" id="toast"><span id="toastMsg"></span><button id="toastAct" hidden></button></div>
@@ -1283,6 +1341,317 @@ tr.dragging td{opacity:.45}
   <option value="Dentistry"></option>
 </datalist>
 
+<script>
+/* OPD Register — storage.
+   IndexedDB is the primary engine (structured clone, no JSON stringify, no 5 MB ceiling).
+   localStorage stays as the fallback and as the one-time migration source, so an existing
+   register opens untouched and a browser without IndexedDB keeps working. */
+(function (NS) {
+  'use strict';
+
+  var DB_NAME = 'opd-register';
+  var STORE = 'kv';
+  var VER = 1;
+
+  /* the keys, and where each one lives in localStorage for the fallback */
+  var LS = {
+    db: 'dailyEntryRegister.v2',   /* the key v2 of this app used — do not change it */
+    legacy: 'dailyEntryRegister.v1',
+    vault: 'opdRegister.vault',
+    meta: 'opdRegister.meta',
+    mirror: 'opdRegister.mirror'
+  };
+
+  var engine = 'ls';
+  var idb = null;
+  var readyResolve;
+  var ready = new Promise(function (res) { readyResolve = res; });
+
+  function openIdb() {
+    return new Promise(function (res) {
+      var settled = false;
+      var done = function (e) { if (!settled) { settled = true; res(e); } };
+      var req;
+      try { req = indexedDB.open(DB_NAME, VER); } catch (err) { return done('ls'); }
+      req.onupgradeneeded = function () {
+        var d = req.result;
+        if (!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE);
+      };
+      req.onsuccess = function () { idb = req.result; done('idb'); };
+      req.onerror = function () { done('ls'); };
+      req.onblocked = function () { done('ls'); };
+      /* never let a hung open keep the register off the screen */
+      setTimeout(function () { done('ls'); }, 2000);
+    });
+  }
+
+  function lsGet(key) {
+    try {
+      var raw = localStorage.getItem(LS[key] || key);
+      return raw == null ? null : JSON.parse(raw);
+    } catch (e) { return null; }
+  }
+  function lsPut(key, val) {
+    try { localStorage.setItem(LS[key] || key, JSON.stringify(val)); return true; }
+    catch (e) { return false; }
+  }
+  function lsDel(key) {
+    try { localStorage.removeItem(LS[key] || key); } catch (e) {}
+  }
+
+  function tx(mode) {
+    return idb.transaction(STORE, mode).objectStore(STORE);
+  }
+
+  function get(key) {
+    return ready.then(function () {
+      if (engine === 'ls' || !idb) return lsGet(key);
+      return new Promise(function (res) {
+        var r;
+        try { r = tx('readonly').get(key); } catch (e) { return res(lsGet(key)); }
+        r.onsuccess = function () { res(r.result == null ? null : r.result); };
+        r.onerror = function () { res(lsGet(key)); };
+      });
+    });
+  }
+
+  function put(key, val) {
+    return ready.then(function () {
+      if (engine === 'ls' || !idb) return lsPut(key, val);
+      return new Promise(function (res) {
+        var r;
+        try { r = tx('readwrite').put(val, key); } catch (e) { return res(lsPut(key, val)); }
+        r.onsuccess = function () { res(true); };
+        r.onerror = function () { res(lsPut(key, val)); };
+      });
+    });
+  }
+
+  function del(key) {
+    return ready.then(function () {
+      lsDel(key);
+      if (engine === 'ls' || !idb) return true;
+      return new Promise(function (res) {
+        var r;
+        try { r = tx('readwrite').delete(key); } catch (e) { return res(false); }
+        r.onsuccess = function () { res(true); };
+        r.onerror = function () { res(false); };
+      });
+    });
+  }
+
+  /* ---------- boot ---------- */
+  function init() {
+    return openIdb().then(function (e) {
+      engine = e;
+      readyResolve(engine);
+      return engine;
+    });
+  }
+
+  /* The plain database, migrating from localStorage the first time.
+     Returns { db, source } — source is 'idb' | 'mirror' | 'ls' | 'none'. */
+  function readDb() {
+    return get('db').then(function (v) {
+      if (v) return { db: v, source: 'idb' };
+      /* a write that did not finish before the tab closed leaves a mirror */
+      return get('mirror').then(function (m) {
+        if (m && m.db) return { db: m.db, source: 'mirror' };
+        var raw = null;
+        try { raw = localStorage.getItem(LS.db) || localStorage.getItem(LS.legacy); } catch (e) {}
+        if (!raw) return { db: null, source: 'none' };
+        try { return { db: JSON.parse(raw), source: 'ls' }; } catch (e) { return { db: null, source: 'none' }; }
+      });
+    });
+  }
+
+  /* a synchronous last-gasp copy on unload — IndexedDB writes can be cut off */
+  function mirror(db) {
+    try {
+      var s = JSON.stringify(db);
+      if (s.length < 3 * 1024 * 1024) localStorage.setItem(LS.mirror, JSON.stringify({ at: Date.now(), db: db }));
+    } catch (e) { /* full or unavailable: the IndexedDB copy is the real one */ }
+  }
+
+  function clearMirror() { lsDel('mirror'); }
+
+  NS.storage = {
+    init: init,
+    ready: ready,
+    get: get,
+    put: put,
+    del: del,
+    readDb: readDb,
+    mirror: mirror,
+    clearMirror: clearMirror,
+    engine: function () { return engine; },
+    keys: LS
+  };
+})(window.OPD = window.OPD || {});
+
+</script>
+<script>
+/* OPD Register — the optional passphrase lock.
+
+   PBKDF2-HMAC-SHA256 (310,000 iterations, random 16-byte salt) derives an AES-GCM-256 key;
+   the whole database is encrypted as one blob and stored in place of the plain copy. The
+   plain copy is only removed once the encrypted write has succeeded, so a failure can never
+   destroy the register.
+
+   Honest limits, stated in the UI too: this protects a register on a machine someone else
+   can open. It cannot protect against a keylogger, a compromised browser, or a passphrase
+   written on a sticky note. */
+(function (NS) {
+  'use strict';
+
+  var ITER = 310000;
+  var enc = null;            /* the derived CryptoKey, in memory only */
+  var unlockedDb = null;     /* the decrypted database, held while unlocked */
+
+  function subtle() {
+    return (window.crypto && window.crypto.subtle) ? window.crypto.subtle : null;
+  }
+  function supported() { return !!subtle(); }
+
+  function b64(buf) {
+    var bytes = new Uint8Array(buf), s = '';
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s);
+  }
+  function unb64(str) {
+    var bin = atob(str), out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  function derive(pass, salt, iter) {
+    var te = new TextEncoder();
+    return subtle().importKey('raw', te.encode(pass), { name: 'PBKDF2' }, false, ['deriveKey'])
+      .then(function (base) {
+        return subtle().deriveKey(
+          { name: 'PBKDF2', salt: salt, iterations: iter, hash: 'SHA-256' },
+          base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+        );
+      });
+  }
+
+  function encrypt(key, text) {
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    return subtle().encrypt({ name: 'AES-GCM', iv: iv }, key, new TextEncoder().encode(text))
+      .then(function (ct) { return { iv: b64(iv), ct: b64(ct) }; });
+  }
+
+  function decrypt(key, rec) {
+    return subtle().decrypt({ name: 'AES-GCM', iv: unb64(rec.iv) }, key, unb64(rec.ct))
+      .then(function (buf) { return new TextDecoder().decode(buf); });
+  }
+
+  /* ---------- state ---------- */
+  function isLocked() { return !!NS.S.locked; }
+
+  function vaultRecord(pass, db, existingSalt) {
+    var salt = existingSalt || crypto.getRandomValues(new Uint8Array(16));
+    return derive(pass, salt, ITER).then(function (key) {
+      return encrypt(key, JSON.stringify(db)).then(function (out) {
+        enc = key;
+        return {
+          v: 1, iter: ITER, salt: b64(salt), iv: out.iv, ct: out.ct,
+          at: Date.now()
+        };
+      });
+    });
+  }
+
+  /* Turn the lock on: encrypt, write the vault, and only then drop the plain copy. */
+  function enable(pass) {
+    if (!supported()) return Promise.reject(new Error('This browser has no Web Crypto, so the register cannot be encrypted here.'));
+    if (!pass || pass.length < 6) return Promise.reject(new Error('Use at least 6 characters.'));
+    var db = NS.db;
+    return vaultRecord(pass, db).then(function (rec) {
+      return NS.storage.put('vault', rec).then(function () {
+        return NS.storage.del('db').then(function () {
+          NS.storage.clearMirror();
+          NS.S.locked = true;
+          NS.S.lockedNow = false;
+          unlockedDb = db;
+          return NS.storage.put('meta', { locked: true, at: Date.now() });
+        });
+      });
+    }).then(function () { return true; });
+  }
+
+  /* Unlock: derive, decrypt, hand the database back. */
+  function unlock(pass) {
+    return NS.storage.get('vault').then(function (rec) {
+      if (!rec) return Promise.reject(new Error('No encrypted register found.'));
+      return derive(pass, unb64(rec.salt), rec.iter || ITER).then(function (key) {
+        return decrypt(key, rec).then(function (text) {
+          var db;
+          try { db = JSON.parse(text); } catch (e) { throw new Error('The encrypted register is damaged.'); }
+          enc = key;
+          unlockedDb = db;
+          NS.S.locked = true;       /* still a locked register… */
+          NS.S.lockedNow = false;   /* …but unlocked for this session */
+          return db;
+        });
+      }).catch(function (e) {
+        if (e && /damaged/.test(e.message)) throw e;
+        throw new Error('That passphrase does not open this register.');
+      });
+    });
+  }
+
+  /* Write the current database back into the vault. */
+  function save(db) {
+    if (!enc) return Promise.reject(new Error('Locked'));
+    return encrypt(enc, JSON.stringify(db)).then(function (out) {
+      return NS.storage.get('vault').then(function (rec) {
+        rec = rec || { v: 1, iter: ITER, salt: null };
+        rec.iv = out.iv; rec.ct = out.ct; rec.at = Date.now();
+        return NS.storage.put('vault', rec);
+      });
+    });
+  }
+
+  /* Turn it off: decrypt is already in memory, so just write the plain copy back. */
+  function disable(pass) {
+    return unlock(pass).then(function (db) {
+      return NS.storage.put('db', db).then(function () {
+        return NS.storage.del('vault').then(function () {
+          return NS.storage.put('meta', { locked: false, at: Date.now() });
+        });
+      });
+    }).then(function () {
+      NS.S.locked = false;
+      NS.S.lockedNow = false;
+      enc = null;
+      return true;
+    });
+  }
+
+  /* Drop the key from memory; the encrypted copy stays on disk. */
+  function lockNow() {
+    enc = null;
+    unlockedDb = null;
+    NS.S.lockedNow = true;
+    return true;
+  }
+
+  function isUnlocked() { return !isLocked() || (!!enc && !NS.S.lockedNow); }
+
+  NS.lock = {
+    supported: supported,
+    enable: enable,
+    disable: disable,
+    unlock: unlock,
+    save: save,
+    lockNow: lockNow,
+    isLocked: isLocked,
+    isUnlocked: isUnlocked
+  };
+})(window.OPD = window.OPD || {});
+
+</script>
 <script>
 /* OPD Register — store, storage and shared helpers.
    One global namespace (OPD), classic scripts: works from file://, a WebView and a static host. */
@@ -1388,7 +1757,7 @@ tr.dragging td{opacity:.45}
   /* ---------- state ---------- */
   var DB = null;
   var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {},
-            colOrder: 'default', target: 0 };
+            colOrder: 'default', target: 0, locked: false, lockedNow: false };
   var events = {};
   var saveState = 'saved';
 
@@ -1421,22 +1790,41 @@ tr.dragging td{opacity:.45}
     return defDB();
   }
 
+  var booted = false;
+
+  /* Load is asynchronous now: IndexedDB, the migration from localStorage, and the vault
+     all resolve before the first render. Returns 'locked' when a passphrase is needed. */
   function load() {
-    var raw = null;
-    try { raw = localStorage.getItem(K2); } catch (e) {}
-    if (!raw) { try { raw = localStorage.getItem(K1); } catch (e) {} }
-    var parsed = null;
-    if (raw) { try { parsed = JSON.parse(raw); } catch (e) { parsed = null; } }
-    DB = validDB(parsed);
-    try {
-      var st = JSON.parse(localStorage.getItem(KS) || '{}');
-      if (st && typeof st === 'object') {
-        if (st.theme === 'dark' || st.theme === 'light') S.theme = st.theme;
-        if (st.filter) S.filter = st.filter;
-        if (st.colOrder) S.colOrder = st.colOrder;
-        if (typeof st.target === 'number') S.target = st.target;
+    return NS.storage.init().then(function () {
+      return NS.storage.get('vault');
+    }).then(function (vault) {
+      if (vault) {
+        S.locked = true;
+        S.lockedNow = true;
+        DB = defDB();
+        return 'locked';
       }
-    } catch (e) {}
+      return NS.storage.readDb().then(function (r) {
+        DB = validDB(r.db);
+        if (r.source === 'ls' || r.source === 'mirror') {
+          /* one-time migration into the engine, and keep localStorage as it is */
+          NS.storage.put('db', DB);
+        }
+        booted = true;
+        return r.source;
+      });
+    });
+  }
+
+  /* drop the plain database from memory — used when the register is locked */
+  function forget() { DB = defDB(); return DB; }
+
+  /* after a successful unlock */
+  function adopt(db) {
+    DB = validDB(db);
+    S.lockedNow = false;
+    booted = true;
+    return DB;
   }
 
   function settingsSave() {
@@ -1461,22 +1849,16 @@ tr.dragging td{opacity:.45}
 
   function saveNow() {
     if (DEMO) { setSaveState('saved'); emit('saved'); return; }
+    if (S.locked && S.lockedNow) { setSaveState('err'); return; }  /* no key in memory: nothing may be written */
     setSaveState('busy');
-    try {
-      localStorage.setItem(K2, JSON.stringify(DB));
+    var p = (S.locked && NS.lock) ? NS.lock.save(DB) : NS.storage.put('db', DB);
+    p.then(function () {
       setSaveState('saved');
-    } catch (err) {
-      try {
-        prune();
-        localStorage.setItem(K2, JSON.stringify(DB));
-        setSaveState('saved');
-        toast('Storage was full — empty days were dropped to make room.');
-      } catch (e2) {
-        setSaveState('err');
-        toast('Could not save: this browser storage is full. Export a backup now.', 'Export', function () { NS.exportJson(); });
-      }
-    }
-    emit('saved');
+      emit('saved');
+    }).catch(function () {
+      setSaveState('err');
+      toast('Could not save to this browser. Export a backup now.', 'Export', function () { NS.exportJson(); });
+    });
   }
   var sched = debounce(saveNow, 250);
 
@@ -1879,7 +2261,7 @@ tr.dragging td{opacity:.45}
   NS.ER = ER; NS.DF = DF; NS.DROWS = DROWS; NS.ST = ST; NS.SO = SO;
   NS.S = S;
   Object.defineProperty(NS, 'db', { get: function () { return DB; } });
-  NS.load = load; NS.saveNow = saveNow; NS.sched = sched; NS.settingsSave = settingsSave;
+  NS.load = load; NS.adopt = adopt; NS.forget = forget; NS.saveNow = saveNow; NS.sched = sched; NS.settingsSave = settingsSave;
   NS.setSaveState = setSaveState; NS.bytes = bytes; NS.humanSize = humanSize;
   NS.ent = ent; NS.locNames = locNames; NS.ensureD = ensureD; NS.ensureM = ensureM;
   NS.cnt = cnt; NS.monthCount = monthCount; NS.rowsOfDay = rowsOfDay;
@@ -3982,11 +4364,13 @@ tr.dragging td{opacity:.45}
       '<dt>Locations</dt><dd>' + NS.locNames().length + '</dd>' +
       '<dt>Patients</dt><dd>' + all + '</dd>' +
       '<dt>Months with data</dt><dd>' + Object.keys(months).length + '</dd>' +
-      '<dt>Saved</dt><dd>' + (NS.isDemo() ? 'Demo — nothing is written' : 'In this browser only') + '</dd>';
+      '<dt>Saved</dt><dd>' + (NS.isDemo() ? 'Demo — nothing is written'
+        : (NS.S.locked ? 'Encrypted, in this browser' : 'In this browser only')) + '</dd>' +
+      '<dt>Storage engine</dt><dd>' + (NS.storage.engine() === 'idb' ? 'IndexedDB' : 'localStorage (fallback)') + '</dd>';
     var rf = $('#railStore');
     if (rf) rf.textContent = NS.humanSize(b) + ' · ' + all + ' patients';
   }
-  function renderInfo() { renderLocUI(); updateStoreInfo(); }
+  function renderInfo() { renderLocUI(); updateStoreInfo(); renderLockPanel(); }
 
   /* ---------------- menu ---------------- */
   function openMenu() {
@@ -4102,9 +4486,129 @@ tr.dragging td{opacity:.45}
     });
   }
 
+  /* ---------------- the lock ---------------- */
+  function showLock(msg) {
+    var wrap = $('#lockWrap');
+    if (!wrap) return;
+    wrap.hidden = false;
+    document.querySelector('.app').style.display = 'none';
+    var err = $('#lockErr');
+    if (msg) { err.hidden = false; err.textContent = msg; }
+    setTimeout(function () { var i = $('#unlockPass'); if (i) i.focus(); }, 120);
+  }
+  function hideLock() {
+    var wrap = $('#lockWrap');
+    if (wrap) wrap.hidden = true;
+    document.querySelector('.app').style.display = '';
+    var p = $('#unlockPass'); if (p) p.value = '';
+    var err = $('#lockErr'); if (err) { err.hidden = true; err.textContent = ''; }
+  }
+
+  function bindLock() {
+    var form = $('#lockForm');
+    if (!form) return;
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var pass = $('#unlockPass').value;
+      var btn = $('#btnUnlock');
+      btn.disabled = true; btn.textContent = 'Opening…';
+      NS.lock.unlock(pass).then(function (db) {
+        NS.adopt(db);
+        hideLock();
+        start();
+      }).catch(function (e) {
+        showLock(e && e.message ? e.message : 'Could not open the register.');
+      }).then(function () {
+        btn.disabled = false; btn.textContent = 'Unlock';
+      });
+    });
+  }
+
+  function renderLockPanel() {
+    var state = $('#lockState'), on = $('#lockOnBox'), off = $('#lockOffBox');
+    if (!state) return;
+    if (!NS.lock.supported()) {
+      state.innerHTML = '<p style="font-size:12.5px;color:var(--muted)">This browser has no Web Crypto, so the register cannot be encrypted here. The data stays unencrypted on this device.</p>';
+      on.style.display = 'none'; off.style.display = 'none';
+      return;
+    }
+    if (NS.S.locked) {
+      state.innerHTML = '<p style="font-size:12.5px;color:var(--ok);font-weight:700">Encrypted with AES-GCM. Unlocked for this session.</p>';
+      on.style.display = 'none'; off.style.display = 'flex';
+    } else {
+      state.innerHTML = '<p style="font-size:12.5px;color:var(--muted)">Off — the register is stored unencrypted in this browser.</p>';
+      on.style.display = 'flex'; off.style.display = 'none';
+    }
+  }
+
+  function bindLockPanel() {
+    var on = $('#btnLockOn');
+    if (on) on.addEventListener('click', function () {
+      var a = $('#lockPass').value, b = $('#lockPass2').value;
+      if (a !== b) { NS.toast('The two passphrases do not match.'); return; }
+      on.disabled = true; on.textContent = 'Encrypting…';
+      NS.lock.enable(a).then(function () {
+        $('#lockPass').value = ''; $('#lockPass2').value = '';
+        NS.toast('Locked. The passphrase is not stored anywhere.');
+        renderLockPanel(); updateStoreInfo();
+      }).catch(function (e) {
+        NS.toast(e && e.message ? e.message : 'Could not turn the lock on.');
+      }).then(function () { on.disabled = false; on.textContent = 'Turn on the lock'; });
+    });
+    var off = $('#btnLockOff');
+    if (off) off.addEventListener('click', function () {
+      var pass = $('#lockOffPass').value;
+      off.disabled = true;
+      NS.lock.disable(pass).then(function () {
+        $('#lockOffPass').value = '';
+        NS.toast('The lock is off; the register is stored unencrypted again.');
+        renderLockPanel(); updateStoreInfo();
+      }).catch(function (e) {
+        NS.toast(e && e.message ? e.message : 'That passphrase does not match.');
+      }).then(function () { off.disabled = false; });
+    });
+    var now = $('#btnLockNow');
+    if (now) now.addEventListener('click', function () {
+      NS.saveNow();
+      setTimeout(function () {
+        NS.lock.lockNow();
+        NS.forget();
+        showLock();
+      }, 300);
+    });
+  }
+
   /* ---------------- boot ---------------- */
   function init() {
-    NS.load();
+    bindLock();
+    NS.load().then(function (state) {
+      if (state === 'locked') {
+        NS.S.curM = NS.mKey(new Date());
+        showLock();
+        return;
+      }
+      start();
+    }).catch(function (e) {
+      console.error(e);
+      NS.toast('Storage could not be opened; the register is empty until it can be.');
+      start();
+    });
+  }
+
+  var started = false;
+  function start() {
+    /* start() runs once; after a lock/unlock in the same page it only re-renders, or every
+       listener would be bound twice and every click would happen twice */
+    if (started) {
+      NS.renderRegisterAll();
+      NS.renderDashboard();
+      NS.renderSearch();
+      renderLocUI();
+      updateStoreInfo();
+      renderLockPanel();
+      return;
+    }
+    started = true;
     NS.S.curM = NS.mKey(new Date());
     NS.S.curD = NS.tKey();
     var demoParam = /[?&]demo=1/.test(location.search);
@@ -4126,6 +4630,7 @@ tr.dragging td{opacity:.45}
     NS.bindSearch();
     bindMenu();
     bindRange();
+    bindLockPanel();
     bindKeys();
 
     $$('#railNav button, #tabbar button').forEach(function (b) {
@@ -4232,7 +4737,16 @@ tr.dragging td{opacity:.45}
     switchView(VIEWS.indexOf(hash) !== -1 ? hash : 'dash');
 
     /* safety nets */
-    ['beforeunload', 'pagehide', 'blur'].forEach(function (e) { window.addEventListener(e, NS.saveNow); });
+    ['beforeunload', 'pagehide'].forEach(function (e) {
+      window.addEventListener(e, function () {
+        NS.saveNow();
+        /* IndexedDB writes can be cut off when a tab closes: keep one synchronous copy */
+        if (!NS.isDemo() && NS.storage.engine() === 'idb' && !(NS.S.locked && NS.S.lockedNow)) {
+          NS.storage.mirror(NS.db);
+        }
+      });
+    });
+    window.addEventListener('blur', NS.saveNow);
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') NS.saveNow(); });
     window.addEventListener('storage', function (ev) {
       if (ev.key === 'dailyEntryRegister.v2' && !NS.isDemo()) NS.toast('This register was changed in another tab — reload to see it.');

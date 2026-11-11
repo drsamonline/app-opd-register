@@ -150,11 +150,13 @@
       '<dt>Locations</dt><dd>' + NS.locNames().length + '</dd>' +
       '<dt>Patients</dt><dd>' + all + '</dd>' +
       '<dt>Months with data</dt><dd>' + Object.keys(months).length + '</dd>' +
-      '<dt>Saved</dt><dd>' + (NS.isDemo() ? 'Demo — nothing is written' : 'In this browser only') + '</dd>';
+      '<dt>Saved</dt><dd>' + (NS.isDemo() ? 'Demo — nothing is written'
+        : (NS.S.locked ? 'Encrypted, in this browser' : 'In this browser only')) + '</dd>' +
+      '<dt>Storage engine</dt><dd>' + (NS.storage.engine() === 'idb' ? 'IndexedDB' : 'localStorage (fallback)') + '</dd>';
     var rf = $('#railStore');
     if (rf) rf.textContent = NS.humanSize(b) + ' · ' + all + ' patients';
   }
-  function renderInfo() { renderLocUI(); updateStoreInfo(); }
+  function renderInfo() { renderLocUI(); updateStoreInfo(); renderLockPanel(); }
 
   /* ---------------- menu ---------------- */
   function openMenu() {
@@ -270,9 +272,129 @@
     });
   }
 
+  /* ---------------- the lock ---------------- */
+  function showLock(msg) {
+    var wrap = $('#lockWrap');
+    if (!wrap) return;
+    wrap.hidden = false;
+    document.querySelector('.app').style.display = 'none';
+    var err = $('#lockErr');
+    if (msg) { err.hidden = false; err.textContent = msg; }
+    setTimeout(function () { var i = $('#unlockPass'); if (i) i.focus(); }, 120);
+  }
+  function hideLock() {
+    var wrap = $('#lockWrap');
+    if (wrap) wrap.hidden = true;
+    document.querySelector('.app').style.display = '';
+    var p = $('#unlockPass'); if (p) p.value = '';
+    var err = $('#lockErr'); if (err) { err.hidden = true; err.textContent = ''; }
+  }
+
+  function bindLock() {
+    var form = $('#lockForm');
+    if (!form) return;
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var pass = $('#unlockPass').value;
+      var btn = $('#btnUnlock');
+      btn.disabled = true; btn.textContent = 'Opening…';
+      NS.lock.unlock(pass).then(function (db) {
+        NS.adopt(db);
+        hideLock();
+        start();
+      }).catch(function (e) {
+        showLock(e && e.message ? e.message : 'Could not open the register.');
+      }).then(function () {
+        btn.disabled = false; btn.textContent = 'Unlock';
+      });
+    });
+  }
+
+  function renderLockPanel() {
+    var state = $('#lockState'), on = $('#lockOnBox'), off = $('#lockOffBox');
+    if (!state) return;
+    if (!NS.lock.supported()) {
+      state.innerHTML = '<p style="font-size:12.5px;color:var(--muted)">This browser has no Web Crypto, so the register cannot be encrypted here. The data stays unencrypted on this device.</p>';
+      on.style.display = 'none'; off.style.display = 'none';
+      return;
+    }
+    if (NS.S.locked) {
+      state.innerHTML = '<p style="font-size:12.5px;color:var(--ok);font-weight:700">Encrypted with AES-GCM. Unlocked for this session.</p>';
+      on.style.display = 'none'; off.style.display = 'flex';
+    } else {
+      state.innerHTML = '<p style="font-size:12.5px;color:var(--muted)">Off — the register is stored unencrypted in this browser.</p>';
+      on.style.display = 'flex'; off.style.display = 'none';
+    }
+  }
+
+  function bindLockPanel() {
+    var on = $('#btnLockOn');
+    if (on) on.addEventListener('click', function () {
+      var a = $('#lockPass').value, b = $('#lockPass2').value;
+      if (a !== b) { NS.toast('The two passphrases do not match.'); return; }
+      on.disabled = true; on.textContent = 'Encrypting…';
+      NS.lock.enable(a).then(function () {
+        $('#lockPass').value = ''; $('#lockPass2').value = '';
+        NS.toast('Locked. The passphrase is not stored anywhere.');
+        renderLockPanel(); updateStoreInfo();
+      }).catch(function (e) {
+        NS.toast(e && e.message ? e.message : 'Could not turn the lock on.');
+      }).then(function () { on.disabled = false; on.textContent = 'Turn on the lock'; });
+    });
+    var off = $('#btnLockOff');
+    if (off) off.addEventListener('click', function () {
+      var pass = $('#lockOffPass').value;
+      off.disabled = true;
+      NS.lock.disable(pass).then(function () {
+        $('#lockOffPass').value = '';
+        NS.toast('The lock is off; the register is stored unencrypted again.');
+        renderLockPanel(); updateStoreInfo();
+      }).catch(function (e) {
+        NS.toast(e && e.message ? e.message : 'That passphrase does not match.');
+      }).then(function () { off.disabled = false; });
+    });
+    var now = $('#btnLockNow');
+    if (now) now.addEventListener('click', function () {
+      NS.saveNow();
+      setTimeout(function () {
+        NS.lock.lockNow();
+        NS.forget();
+        showLock();
+      }, 300);
+    });
+  }
+
   /* ---------------- boot ---------------- */
   function init() {
-    NS.load();
+    bindLock();
+    NS.load().then(function (state) {
+      if (state === 'locked') {
+        NS.S.curM = NS.mKey(new Date());
+        showLock();
+        return;
+      }
+      start();
+    }).catch(function (e) {
+      console.error(e);
+      NS.toast('Storage could not be opened; the register is empty until it can be.');
+      start();
+    });
+  }
+
+  var started = false;
+  function start() {
+    /* start() runs once; after a lock/unlock in the same page it only re-renders, or every
+       listener would be bound twice and every click would happen twice */
+    if (started) {
+      NS.renderRegisterAll();
+      NS.renderDashboard();
+      NS.renderSearch();
+      renderLocUI();
+      updateStoreInfo();
+      renderLockPanel();
+      return;
+    }
+    started = true;
     NS.S.curM = NS.mKey(new Date());
     NS.S.curD = NS.tKey();
     var demoParam = /[?&]demo=1/.test(location.search);
@@ -294,6 +416,7 @@
     NS.bindSearch();
     bindMenu();
     bindRange();
+    bindLockPanel();
     bindKeys();
 
     $$('#railNav button, #tabbar button').forEach(function (b) {
@@ -400,7 +523,16 @@
     switchView(VIEWS.indexOf(hash) !== -1 ? hash : 'dash');
 
     /* safety nets */
-    ['beforeunload', 'pagehide', 'blur'].forEach(function (e) { window.addEventListener(e, NS.saveNow); });
+    ['beforeunload', 'pagehide'].forEach(function (e) {
+      window.addEventListener(e, function () {
+        NS.saveNow();
+        /* IndexedDB writes can be cut off when a tab closes: keep one synchronous copy */
+        if (!NS.isDemo() && NS.storage.engine() === 'idb' && !(NS.S.locked && NS.S.lockedNow)) {
+          NS.storage.mirror(NS.db);
+        }
+      });
+    });
+    window.addEventListener('blur', NS.saveNow);
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') NS.saveNow(); });
     window.addEventListener('storage', function (ev) {
       if (ev.key === 'dailyEntryRegister.v2' && !NS.isDemo()) NS.toast('This register was changed in another tab — reload to see it.');

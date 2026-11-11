@@ -21,6 +21,9 @@ missing-diagnosis note · patient-list sort · the highlight-escaping fix.
 **3.5.0** — drag a patient to another day · column-order presets · daily target line ·
 missing-diagnosis mode · export the patient list · undo a day-status change.
 
+**3.6.0** — IndexedDB storage with migration and fallback · optional passphrase lock
+(AES-GCM-256) · off-screen rendering.
+
 ## Next (small, high value)
 
 | Item | Why | Cost |

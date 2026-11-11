@@ -1,5 +1,34 @@
 # Changelog
 
+## 3.6.0 — 2026-11-11
+
+The heavy tier: the register outgrows `localStorage`, and it can be locked.
+
+### Added
+- **IndexedDB storage.** The database is written as a structured object instead of a JSON
+  string on every keystroke — no 5 MB ceiling, no re-serialising the whole register for one
+  character. A v2 `localStorage` register migrates in on first open and is left where it was.
+  A browser without IndexedDB falls back to `localStorage`; the engine in use is shown in
+  *About & help*.
+- **A synchronous mirror on unload.** An IndexedDB write can be cut off when a tab closes, so
+  a last-gasp copy goes to `localStorage` and is read only if the database is missing.
+- **Optional passphrase lock.** AES-GCM-256 over the whole database, keyed by PBKDF2-HMAC-
+  SHA256 (310,000 iterations, random 16-byte salt). The plain copy is deleted only after the
+  encrypted write succeeds; the key is dropped on lock; the register is unreadable while
+  locked, and the lock screen says plainly that the passphrase cannot be recovered.
+- **Off-screen rendering** — `content-visibility:auto` on day sections, so the browser skips
+  layout and paint for days that are not on screen.
+
+### Changed
+- Boot is asynchronous: storage, the vault and the migration resolve before the first render.
+- `start()` runs once; a lock/unlock in the same page only re-renders, so listeners are never
+  bound twice.
+
+### Tests
+- 106 node checks (was 101) and 119 browser checks (was 105): the engine, a reload, a v2
+  migration, the forget/adopt handover, and the whole lock lifecycle — enable, reload, wrong
+  passphrase, right passphrase, data intact, disable.
+
 ## 3.5.0 — 2026-11-11
 
 The last of the small ones, in one pass — and the one medium one: a patient can be dragged

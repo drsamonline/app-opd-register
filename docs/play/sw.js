@@ -1,8 +1,9 @@
 /* OPD Register — offline cache. Bump VERSION when assets change. */
-var VERSION = 'opd-v3.1.0';
+var VERSION = 'opd-v3.6.0';
 var ASSETS = [
   './', './index.html', './manifest.webmanifest', './icon.svg',
   './assets/app.css',
+  './assets/storage.js', './assets/lock.js',
   './assets/store.js', './assets/register.js', './assets/dashboard.js',
   './assets/stats.js', './assets/search.js', './assets/app.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
