@@ -183,6 +183,17 @@ eq('age label: a toddler', NS.ageLabel('1.5'), '18 mo');
 eq('age label: empty', NS.ageLabel(''), '');
 eq('age label: junk passes through', NS.ageLabel('unknown'), 'unknown');
 
+/* ---------- rows saved without a diagnosis ---------- */
+const missAll = NS.missingDiagnosis();
+ok('missing diagnosis: counts a named row with no dx', missAll.n >= 1, missAll.n);
+const missNone = NS.missingDiagnosis('2026-02');
+eq('missing diagnosis: a month with no data is zero', missNone.n, 0);
+ok('missing diagnosis: a diagnosed row is not counted', (function () {
+  const before = NS.missingDiagnosis().n;
+  NS.ensureD('2026-03-07').rows[0] = Object.assign({}, NS.ER, { name: 'Has Dx', diagnosis: 'Fever' });
+  return NS.missingDiagnosis().n === before;
+})());
+
 /* ---------- how long ago ---------- */
 const dayMs = 864e5;
 const ago = n => { const d = new Date(Date.now() - n * dayMs); return d.getFullYear() + '-' + NS.pad(d.getMonth() + 1) + '-' + NS.pad(d.getDate()); };

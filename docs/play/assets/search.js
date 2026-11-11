@@ -3,7 +3,7 @@
   'use strict';
   var $ = NS.$, esc = NS.esc;
 
-  var cache = null, cacheKey = '';
+  var cache = null, cacheKey = '', sortMode = 'new';
 
   function index(allLoc) {
     var key = NS.db.current + '|' + allLoc;
@@ -23,16 +23,23 @@
   }
   function invalidate() { cache = null; }
 
+  /* Highlight by splitting the RAW text and escaping each piece. Escaping first and
+     then matching would let a search for "a" break "&amp;" into "&<mark>a</mark>mp;",
+     which the browser prints literally. */
   function hl(text, terms) {
-    var s = String(text || '');
-    if (!terms.length) return esc(s);
-    var out = esc(s);
-    terms.forEach(function (t) {
-      if (!t) return;
-      var re = new RegExp('(' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
-      out = out.replace(re, '<mark>$1</mark>');
+    var str = String(text == null ? '' : text);
+    var pats = (terms || []).filter(Boolean).map(function (t) {
+      return t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     });
-    return out;
+    if (!pats.length) return esc(str);
+    var re = new RegExp('(' + pats.join('|') + ')', 'ig');
+    var out = '', last = 0, m;
+    while ((m = re.exec(str)) !== null) {
+      out += esc(str.slice(last, m.index)) + '<mark>' + esc(m[0]) + '</mark>';
+      last = m.index + m[0].length;
+      if (m[0] === '') re.lastIndex++;
+    }
+    return out + esc(str.slice(last));
   }
 
   function render() {
@@ -43,7 +50,15 @@
     var rows = index(allLoc);
     var terms = q.split(/\s+/).filter(Boolean);
     var hits = terms.length ? rows.filter(function (r) { return terms.every(function (t) { return r.hay.indexOf(t) !== -1; }); }) : rows;
-    var limited = hits.slice(0, 300);
+    var sorted = hits.slice();
+    if (sortMode === 'old') sorted.reverse();
+    else if (sortMode === 'name') sorted.sort(function (a, b) { return (a.name || '\uffff').localeCompare(b.name || '\uffff'); });
+    else if (sortMode === 'opd') sorted.sort(function (a, b) {
+      var an = parseInt(a.opd, 10), bn = parseInt(b.opd, 10);
+      if (!isNaN(an) && !isNaN(bn) && an !== bn) return an - bn;
+      return String(a.opd).localeCompare(String(b.opd));
+    });
+    var limited = sorted.slice(0, 300);
     var sub = $('#searchSub');
     if (sub) sub.textContent = terms.length
       ? hits.length + ' match' + (hits.length === 1 ? '' : 'es') + (hits.length > 300 ? ' (first 300 shown)' : '') + (allLoc ? ' · all locations' : ' · ' + NS.db.current)
@@ -94,6 +109,8 @@
     }
     var chk = $('#searchAllLoc');
     if (chk) chk.addEventListener('change', render);
+    var srt = $('#searchSort');
+    if (srt) srt.addEventListener('change', function () { sortMode = srt.value; render(); });
     var box = $('#hits');
     if (box) {
       box.addEventListener('click', function (ev) {

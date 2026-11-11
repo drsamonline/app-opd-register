@@ -1,5 +1,32 @@
 # Changelog
 
+## 3.4.0 — 2026-11-11
+
+Six small things in one pass, all of them answers to "where did that entry go".
+
+### Added
+- **Undo a deleted location** — deleting a location used to be the one irreversible action
+  in the app. The toast now puts it back, data and all.
+- **Search inside one day** — a magnifier in the day header narrows the register to that day
+  and points the row filter at it; a chip shows "Only Thu, 13 Nov" until you clear it.
+- **Digest: week totals** — the monthly digest now has a week-by-week table (patients, new,
+  follow-up, working days) beside the daily one.
+- **Digest: a note on gaps** — if entries were saved without a diagnosis or treatment, the
+  digest says how many, in amber.
+- **"Rows without a diagnosis"** in the dashboard's reading panel, with a tap through to the
+  register.
+- **Sort the patient list** — newest, oldest, name A–Z, or OPD number.
+
+### Fixed
+- **Search highlighting broke entities.** Searching for `a` turned "Gynec &amp; Obs" into
+  `&<mark>a</mark>mp;`, which printed the literal `&amp;`. Highlighting now splits the raw
+  text and escapes each piece, so no search term can corrupt an escape.
+- The digest's day table stretched to the height of the department table, leaving half a page
+  of white space; the three blocks are now independent and the days run in two columns.
+
+### Tests
+- 101 node checks (was 98) and 95 browser checks (was 87).
+
 ## 3.3.0 — 2026-11-11
 
 The third tier: the register now reads as a week, and a patient's history can leave the screen.

@@ -247,7 +247,15 @@
     NS.toast('Month exported as CSV.');
   }
 
-  /* One page a month for the file: totals, departments, sex, every day, and a signature line. */
+  function dayBlock(list, label) {
+    return '<div><table><thead><tr><th>' + label + '</th><th>Status</th><th>Patients</th></tr></thead><tbody>' +
+      list.map(function (x) {
+        return '<tr><td>' + x.d + '</td><td style="text-align:left;color:#64748b">' + esc(NS.ST[x.st].s) +
+          (x.note ? ' · ' + esc(x.note) : '') + '</td><td>' + (x.s.total || '–') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
+  /* One page a month for the file: totals, departments, every day, every week, signature. */
   function digest() {
     var mk = NS.S.curM || NS.mKey(new Date());
     var month = monthStats(mk);
@@ -258,6 +266,20 @@
       if (st === 'working' && s1.total > 0) worked++;
       days.push({ d: d, k: k, s: s1, st: st, note: (NS.ent()[k] || {}).note || '' });
     }
+    /* weeks as the calendar draws them: Sunday to Saturday */
+    var weeks = [], cur = null;
+    days.forEach(function (x) {
+      var dow = new Date(x.k + 'T00:00:00').getDay();
+      if (!cur || dow === 0) {
+        cur = { from: x.d, to: x.d, total: 0, newC: 0, oldC: 0, worked: 0, k: x.k };
+        weeks.push(cur);
+      }
+      cur.to = x.d;
+      cur.total += x.s.total;
+      cur.newC += x.s.newC;
+      cur.oldC += x.s.oldC;
+      if (x.st === 'working' && x.s.total > 0) cur.worked++;
+    });
     var deptRows = [['Medicine', month.med], ['Surgery', month.surg], ['Gynec & Obs', month.gyn], ['Pediatrics', month.ped], ['Other / unspecified', month.other]]
       .filter(function (r) { return r[1] > 0; });
     var pctOf = function (v) { return month.total ? Math.round(v / month.total * 100) + '%' : '–'; };
@@ -275,16 +297,28 @@
       '<div><b>' + month.avg + '</b><span>Average per day</span></div>' +
       '</div>' +
 
-      '<div class="cols2">' +
+      '<div class="cols3">' +
       '<div><table><thead><tr><th>Department</th><th>Patients</th><th>Share</th></tr></thead><tbody>' +
       deptRows.map(function (r) { return '<tr><td>' + esc(r[0]) + '</td><td>' + r[1] + '</td><td>' + pctOf(r[1]) + '</td></tr>'; }).join('') +
       '<tr class="total"><td>Total</td><td>' + month.total + '</td><td>100%</td></tr>' +
       '</tbody></table></div>' +
-      '<div><table><thead><tr><th>Day</th><th>Status</th><th>Patients</th></tr></thead><tbody>' +
-      days.map(function (x) {
-        return '<tr><td>' + x.d + '</td><td style="text-align:left;color:#64748b">' + esc(NS.ST[x.st].s) + (x.note ? ' · ' + esc(x.note) : '') + '</td><td>' + (x.s.total || '–') + '</td></tr>';
+      dayBlock(days.slice(0, Math.ceil(days.length / 2)), 'Day') +
+      dayBlock(days.slice(Math.ceil(days.length / 2)), 'Day') +
+      '</div>' +
+
+      '<table style="margin-top:12px"><thead><tr><th>Week</th><th>Patients</th><th>New</th><th>Follow-up</th><th>Working days</th></tr></thead><tbody>' +
+      weeks.map(function (w) {
+        var lbl = w.from === w.to ? String(w.from) : (w.from + '–' + w.to);
+        return '<tr><td>' + esc(lbl) + ' ' + esc(NS.fmtMonth(mk).split(' ')[0].slice(0, 3)) + '</td><td>' + w.total +
+          '</td><td>' + w.newC + '</td><td>' + w.oldC + '</td><td>' + w.worked + '</td></tr>';
       }).join('') +
-      '</tbody></table></div></div>' +
+      '</tbody></table>' +
+
+      (function () {
+        var miss = NS.missingDiagnosis(mk);
+        return miss.n ? '<div style="margin-top:10px;font-size:11px;color:#b26b00;font-weight:700">' +
+          miss.n + ' entr' + (miss.n === 1 ? 'y has' : 'ies have') + ' no diagnosis or treatment recorded.</div>' : '';
+      })() +
 
       '<div class="sign"><span>Signature: ____________________</span><span>' + esc(NS.db.current) + '</span><span>Prepared from the OPD register</span></div>' +
       '</div>';

@@ -190,6 +190,7 @@
             <button data-filter="data" aria-pressed="false">With patients</button>
             <button data-filter="today" aria-pressed="false">Today</button>
           </div>
+          <span id="onlyDay" hidden></span>
           <label class="rowfilter" title="Show only rows that match">
             <svg width="13" height="13"><use href="#i-search"/></svg>
             <input id="rowFilter" type="search" placeholder="Filter rows" autocomplete="off"/>
@@ -280,6 +281,15 @@
             </label>
             <label class="chip" style="gap:6px">
               <input type="checkbox" id="searchAllLoc" style="accent-color:var(--accent)"/>All locations
+            </label>
+            <label class="chip" style="gap:6px;cursor:default">
+              <span style="color:var(--muted);font-weight:700">Sort</span>
+              <select id="searchSort" style="border:0;background:transparent;font-size:12px;font-weight:700;color:var(--accent-d);cursor:pointer">
+                <option value="new">Newest first</option>
+                <option value="old">Oldest first</option>
+                <option value="name">Name A–Z</option>
+                <option value="opd">OPD no.</option>
+              </select>
             </label>
           </div>
         </div>

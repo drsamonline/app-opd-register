@@ -341,6 +341,20 @@
     return Math.round(y) + ' y';
   }
 
+  /* rows that are a patient but carry neither a diagnosis nor a treatment */
+  function missingDiagnosis(mk) {
+    var E = ent(), n = 0, days = [];
+    Object.keys(E).forEach(function (k) {
+      if (mk && k.slice(0, 7) !== mk) return;
+      ((E[k] || {}).rows || []).forEach(function (r) {
+        if (!hasD(r)) return;
+        if (String(r.diagnosis || '').trim() || String(r.treatment || '').trim()) return;
+        n++; days.push(k);
+      });
+    });
+    return { n: n, days: days };
+  }
+
   /* "3 months ago" — the interval matters as much as the visit */
   function humanGap(dateKey) {
     var k = String(dateKey || '').trim();
@@ -563,6 +577,7 @@
   NS.hasD = hasD; NS.blankRows = blankRows; NS.ageYears = ageYears; NS.deptK = deptK; NS.debounce = debounce;
   NS.normaliseAge = normaliseAge; NS.dueFollowUps = dueFollowUps; NS.deptHistory = deptHistory; NS.DF_ALL = DF_ALL;
   NS.patientHistory = patientHistory; NS.nextOpd = nextOpd; NS.ageLabel = ageLabel; NS.humanGap = humanGap;
+  NS.missingDiagnosis = missingDiagnosis;
   NS.ER = ER; NS.DF = DF; NS.DROWS = DROWS; NS.ST = ST; NS.SO = SO;
   NS.S = S;
   Object.defineProperty(NS, 'db', { get: function () { return DB; } });

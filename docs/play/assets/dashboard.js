@@ -156,16 +156,21 @@
       var busiest = a.daily.reduce(function (b, x) { return x.n > b.n ? x : b; }, { n: 0, k: null });
       var zeroDays = a.daily.filter(function (x) { return x.n === 0 && x.status === 'working' && x.d <= new Date().getDate(); }).length;
       var oldRatio = a.total ? Math.round(a.oldC / a.total * 100) : 0;
+      var miss = NS.missingDiagnosis(mk);
       var rowsI = [
         ['Busiest day', busiest.n ? NS.fmtDay(busiest.k) + ' · ' + busiest.n : '—', busiest.n / Math.max(1, a.total)],
         ['New vs follow-up', a.newC + ' / ' + a.oldC, a.newC / Math.max(1, a.total)],
         ['Working days with no entry', zeroDays + '', 1 - zeroDays / Math.max(1, NS.dim(mk))],
         ['Female share', (a.total ? pct(a.female, a.total) : 0) + '%', a.female / Math.max(1, a.total)],
-        ['Gyn share of OPD', (a.total ? pct(a.gyn, a.total) : 0) + '%', a.gyn / Math.max(1, a.total)]
+        ['Gyn share of OPD', (a.total ? pct(a.gyn, a.total) : 0) + '%', a.gyn / Math.max(1, a.total)],
+        ['Rows without a diagnosis', miss.n + (miss.n ? ' · tap to fix' : ''), 1 - miss.n / Math.max(1, a.total)]
       ];
       ins.className = 'readlist';
+      var missRow = rowsI[rowsI.length - 1];
       ins.innerHTML = rowsI.map(function (r) {
-        return '<div class="row"><span class="rk">' + esc(r[0]) + '</span><span class="rv">' + esc(r[1]) + '</span></div>';
+        var isMiss = r === missRow && miss.n > 0;
+        return '<div class="row"' + (isMiss ? ' data-miss="1" style="cursor:pointer"' : '') + '>' +
+          '<span class="rk">' + esc(r[0]) + '</span><span class="rv"' + (isMiss ? ' style="color:var(--warn)"' : '') + '>' + esc(r[1]) + '</span></div>';
       }).join('');
     }
   }
@@ -185,6 +190,12 @@
       NS.switchView('register');
       NS.selectDay(k, true);
       if (idx != null) setTimeout(function () { NS.openSheet(k, +idx); }, 300);
+    });
+    document.addEventListener('click', function (ev) {
+      if (!ev.target.closest('[data-miss]')) return;
+      NS.S.rowFilter = '';
+      NS.S.onlyDay = '';
+      NS.switchView('register');
     });
     var b = $('#btnDashRegister');
     if (b) b.addEventListener('click', function () { NS.switchView('register'); });

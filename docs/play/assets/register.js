@@ -7,6 +7,7 @@
   var mqNarrow = window.matchMedia('(max-width: 900px)');
   S.scope = 'month';
   S.rowFilter = '';
+  S.onlyDay = '';
   function narrow() { return mqNarrow.matches; }
 
   /* ================= CALENDAR ================= */
@@ -137,6 +138,7 @@
       '<input class="note" data-dnote="' + k + '" placeholder="Note — camp, festival, half day…" value="' + esc(e.note || '') + '">' +
       '<span class="dayacts">' +
       '<button data-add="' + k + '" title="Add a patient row" aria-label="Add a patient row"><svg width="14" height="14"><use href="#i-plus"/></svg></button>' +
+      '<button data-daysearch="' + k + '" title="Search inside this day" aria-label="Search inside this day"><svg width="13" height="13"><use href="#i-search"/></svg></button>' +
       '<button data-printday="' + k + '" title="Print this day" aria-label="Print this day"><svg width="13" height="13"><use href="#i-print"/></svg></button>' +
       '<button class="danger" data-clear="' + k + '" title="Clear this day" aria-label="Clear this day"><svg width="13" height="13"><use href="#i-trash"/></svg></button>' +
       '</span></div>';
@@ -184,6 +186,7 @@
 
   function visibleDays() {
     var out = [];
+    if (S.onlyDay) return [S.onlyDay];
     if (S.scope === 'week') {
       out = weekDays(S.curD || NS.tKey());
       if (S.filter === 'data') out = out.filter(function (k) { return NS.cnt(k) > 0; });
@@ -265,6 +268,12 @@
     } else {
       host.innerHTML = days.length ? days.map(dayHTML).join('')
         : '<div class="empty"><b>No days to show</b>Switch the filter, or pick another month.</div>';
+    }
+    var only = $('#onlyDay');
+    if (only) {
+      only.hidden = !S.onlyDay;
+      only.innerHTML = S.onlyDay ? '<button class="chip" data-clearday="1" title="Show every day again">Only ' +
+        esc(NS.fmtDay(S.onlyDay)) + ' <b style="margin-left:4px">&times;</b></button>' : '';
     }
     var wk = S.scope === 'week';
     var wl = $('#weekLbl'), wp = $('#btnWeekPrev'), wn = $('#btnWeekNext');
@@ -785,6 +794,20 @@
     host.addEventListener('click', function (ev) {
       var add = ev.target.closest('[data-add]');
       if (add) { addRow(add.dataset.add, !narrow()); return; }
+      var ds = ev.target.closest('[data-daysearch]');
+      if (ds) {
+        S.onlyDay = ds.dataset.daysearch;
+        var rf = $('#rowFilter');
+        if (rf) { rf.value = ''; rf.placeholder = 'Filter this day'; rf.focus(); }
+        S.rowFilter = '';
+        renderRegister();
+        NS.toast('Showing ' + NS.fmtDay(S.onlyDay) + ' only.', 'All days', function () {
+          S.onlyDay = '';
+          var r2 = $('#rowFilter'); if (r2) r2.placeholder = 'Filter rows';
+          renderRegister();
+        });
+        return;
+      }
       var pd = ev.target.closest('[data-printday]');
       if (pd) { printDay(pd.dataset.printday); return; }
       var clr = ev.target.closest('[data-clear]');
@@ -860,6 +883,14 @@
       var c = ev.target.closest('[data-date]');
       if (!c) return;
       NS.saveNow(); selectDay(c.dataset.date, true);
+    });
+
+    var od = $('#onlyDay');
+    if (od) od.addEventListener('click', function (ev) {
+      if (!ev.target.closest('[data-clearday]')) return;
+      S.onlyDay = '';
+      var rf2 = $('#rowFilter'); if (rf2) { rf2.placeholder = 'Filter rows'; }
+      renderRegister();
     });
 
     $('#regScope').addEventListener('click', function (ev) {

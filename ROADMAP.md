@@ -15,6 +15,9 @@ week scope · undo for a bulk range · ages as months.
 **3.3.0** — week as seven columns · print the week · printed visit slip · repeat last
 prescription from a row · follow-ups by department · "last seen" gaps.
 
+**3.4.0** — undo a deleted location · search inside one day · digest week totals and a
+missing-diagnosis note · patient-list sort · the highlight-escaping fix.
+
 ## Next (small, high value)
 
 | Item | Why | Cost |

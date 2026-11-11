@@ -122,10 +122,17 @@
   function deleteLocation() {
     var name = NS.db.current;
     if (NS.locNames().length <= 1) { alert('You must keep at least one location.'); return; }
-    if (!confirm('Delete "' + name + '" and every entry in it?\n\nThis cannot be undone.')) return;
+    if (!confirm('Delete "' + name + '" and every entry in it?')) return;
+    var snapshot = JSON.parse(JSON.stringify(NS.db.locations[name]));
     NS.delLoc(name);
     afterLocationChange();
-    NS.toast('Location deleted.');
+    NS.toast('Location "' + name + '" deleted.', 'Undo', function () {
+      NS.db.locations[name] = snapshot;
+      NS.db.current = name;
+      NS.saveNow();
+      afterLocationChange();
+      NS.toast('"' + name + '" restored.');
+    });
   }
 
   /* ---------------- info panel ---------------- */

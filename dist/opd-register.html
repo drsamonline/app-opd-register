@@ -560,7 +560,10 @@ table.reg td input[type="date"]::-webkit-calendar-picker-indicator{opacity:.45;c
 .digest th:first-child,.digest td:first-child{text-align:left}
 .digest td{padding:4px 8px;border:1px solid #e8eef5}
 .digest tr.total td{font-weight:800;background:#eaf1ff}
-.digest .cols2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}
+.digest .cols2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px;align-items:start}
+.digest .cols3{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:12px;margin-top:12px;align-items:start}
+.digest .cols3 th,.digest .cols3 td{padding:3px 6px;font-size:10.5px}
+.digest table{margin-top:0}
 .digest .sign{margin-top:18px;display:flex;justify-content:space-between;font-size:11px;color:#64748b;border-top:1px solid #dbe3ee;padding-top:8px}
 @media print{.digest .dk div,.digest th,.digest tr.total td{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
 
@@ -967,6 +970,7 @@ table.st td.z{color:var(--muted-2)}
             <button data-filter="data" aria-pressed="false">With patients</button>
             <button data-filter="today" aria-pressed="false">Today</button>
           </div>
+          <span id="onlyDay" hidden></span>
           <label class="rowfilter" title="Show only rows that match">
             <svg width="13" height="13"><use href="#i-search"/></svg>
             <input id="rowFilter" type="search" placeholder="Filter rows" autocomplete="off"/>
@@ -1057,6 +1061,15 @@ table.st td.z{color:var(--muted-2)}
             </label>
             <label class="chip" style="gap:6px">
               <input type="checkbox" id="searchAllLoc" style="accent-color:var(--accent)"/>All locations
+            </label>
+            <label class="chip" style="gap:6px;cursor:default">
+              <span style="color:var(--muted);font-weight:700">Sort</span>
+              <select id="searchSort" style="border:0;background:transparent;font-size:12px;font-weight:700;color:var(--accent-d);cursor:pointer">
+                <option value="new">Newest first</option>
+                <option value="old">Oldest first</option>
+                <option value="name">Name A–Z</option>
+                <option value="opd">OPD no.</option>
+              </select>
             </label>
           </div>
         </div>
@@ -1577,6 +1590,20 @@ table.st td.z{color:var(--muted-2)}
     return Math.round(y) + ' y';
   }
 
+  /* rows that are a patient but carry neither a diagnosis nor a treatment */
+  function missingDiagnosis(mk) {
+    var E = ent(), n = 0, days = [];
+    Object.keys(E).forEach(function (k) {
+      if (mk && k.slice(0, 7) !== mk) return;
+      ((E[k] || {}).rows || []).forEach(function (r) {
+        if (!hasD(r)) return;
+        if (String(r.diagnosis || '').trim() || String(r.treatment || '').trim()) return;
+        n++; days.push(k);
+      });
+    });
+    return { n: n, days: days };
+  }
+
   /* "3 months ago" — the interval matters as much as the visit */
   function humanGap(dateKey) {
     var k = String(dateKey || '').trim();
@@ -1799,6 +1826,7 @@ table.st td.z{color:var(--muted-2)}
   NS.hasD = hasD; NS.blankRows = blankRows; NS.ageYears = ageYears; NS.deptK = deptK; NS.debounce = debounce;
   NS.normaliseAge = normaliseAge; NS.dueFollowUps = dueFollowUps; NS.deptHistory = deptHistory; NS.DF_ALL = DF_ALL;
   NS.patientHistory = patientHistory; NS.nextOpd = nextOpd; NS.ageLabel = ageLabel; NS.humanGap = humanGap;
+  NS.missingDiagnosis = missingDiagnosis;
   NS.ER = ER; NS.DF = DF; NS.DROWS = DROWS; NS.ST = ST; NS.SO = SO;
   NS.S = S;
   Object.defineProperty(NS, 'db', { get: function () { return DB; } });
@@ -1826,6 +1854,7 @@ table.st td.z{color:var(--muted-2)}
   var mqNarrow = window.matchMedia('(max-width: 900px)');
   S.scope = 'month';
   S.rowFilter = '';
+  S.onlyDay = '';
   function narrow() { return mqNarrow.matches; }
 
   /* ================= CALENDAR ================= */
@@ -1956,6 +1985,7 @@ table.st td.z{color:var(--muted-2)}
       '<input class="note" data-dnote="' + k + '" placeholder="Note — camp, festival, half day…" value="' + esc(e.note || '') + '">' +
       '<span class="dayacts">' +
       '<button data-add="' + k + '" title="Add a patient row" aria-label="Add a patient row"><svg width="14" height="14"><use href="#i-plus"/></svg></button>' +
+      '<button data-daysearch="' + k + '" title="Search inside this day" aria-label="Search inside this day"><svg width="13" height="13"><use href="#i-search"/></svg></button>' +
       '<button data-printday="' + k + '" title="Print this day" aria-label="Print this day"><svg width="13" height="13"><use href="#i-print"/></svg></button>' +
       '<button class="danger" data-clear="' + k + '" title="Clear this day" aria-label="Clear this day"><svg width="13" height="13"><use href="#i-trash"/></svg></button>' +
       '</span></div>';
@@ -2003,6 +2033,7 @@ table.st td.z{color:var(--muted-2)}
 
   function visibleDays() {
     var out = [];
+    if (S.onlyDay) return [S.onlyDay];
     if (S.scope === 'week') {
       out = weekDays(S.curD || NS.tKey());
       if (S.filter === 'data') out = out.filter(function (k) { return NS.cnt(k) > 0; });
@@ -2084,6 +2115,12 @@ table.st td.z{color:var(--muted-2)}
     } else {
       host.innerHTML = days.length ? days.map(dayHTML).join('')
         : '<div class="empty"><b>No days to show</b>Switch the filter, or pick another month.</div>';
+    }
+    var only = $('#onlyDay');
+    if (only) {
+      only.hidden = !S.onlyDay;
+      only.innerHTML = S.onlyDay ? '<button class="chip" data-clearday="1" title="Show every day again">Only ' +
+        esc(NS.fmtDay(S.onlyDay)) + ' <b style="margin-left:4px">&times;</b></button>' : '';
     }
     var wk = S.scope === 'week';
     var wl = $('#weekLbl'), wp = $('#btnWeekPrev'), wn = $('#btnWeekNext');
@@ -2604,6 +2641,20 @@ table.st td.z{color:var(--muted-2)}
     host.addEventListener('click', function (ev) {
       var add = ev.target.closest('[data-add]');
       if (add) { addRow(add.dataset.add, !narrow()); return; }
+      var ds = ev.target.closest('[data-daysearch]');
+      if (ds) {
+        S.onlyDay = ds.dataset.daysearch;
+        var rf = $('#rowFilter');
+        if (rf) { rf.value = ''; rf.placeholder = 'Filter this day'; rf.focus(); }
+        S.rowFilter = '';
+        renderRegister();
+        NS.toast('Showing ' + NS.fmtDay(S.onlyDay) + ' only.', 'All days', function () {
+          S.onlyDay = '';
+          var r2 = $('#rowFilter'); if (r2) r2.placeholder = 'Filter rows';
+          renderRegister();
+        });
+        return;
+      }
       var pd = ev.target.closest('[data-printday]');
       if (pd) { printDay(pd.dataset.printday); return; }
       var clr = ev.target.closest('[data-clear]');
@@ -2679,6 +2730,14 @@ table.st td.z{color:var(--muted-2)}
       var c = ev.target.closest('[data-date]');
       if (!c) return;
       NS.saveNow(); selectDay(c.dataset.date, true);
+    });
+
+    var od = $('#onlyDay');
+    if (od) od.addEventListener('click', function (ev) {
+      if (!ev.target.closest('[data-clearday]')) return;
+      S.onlyDay = '';
+      var rf2 = $('#rowFilter'); if (rf2) { rf2.placeholder = 'Filter rows'; }
+      renderRegister();
     });
 
     $('#regScope').addEventListener('click', function (ev) {
@@ -2974,16 +3033,21 @@ table.st td.z{color:var(--muted-2)}
       var busiest = a.daily.reduce(function (b, x) { return x.n > b.n ? x : b; }, { n: 0, k: null });
       var zeroDays = a.daily.filter(function (x) { return x.n === 0 && x.status === 'working' && x.d <= new Date().getDate(); }).length;
       var oldRatio = a.total ? Math.round(a.oldC / a.total * 100) : 0;
+      var miss = NS.missingDiagnosis(mk);
       var rowsI = [
         ['Busiest day', busiest.n ? NS.fmtDay(busiest.k) + ' · ' + busiest.n : '—', busiest.n / Math.max(1, a.total)],
         ['New vs follow-up', a.newC + ' / ' + a.oldC, a.newC / Math.max(1, a.total)],
         ['Working days with no entry', zeroDays + '', 1 - zeroDays / Math.max(1, NS.dim(mk))],
         ['Female share', (a.total ? pct(a.female, a.total) : 0) + '%', a.female / Math.max(1, a.total)],
-        ['Gyn share of OPD', (a.total ? pct(a.gyn, a.total) : 0) + '%', a.gyn / Math.max(1, a.total)]
+        ['Gyn share of OPD', (a.total ? pct(a.gyn, a.total) : 0) + '%', a.gyn / Math.max(1, a.total)],
+        ['Rows without a diagnosis', miss.n + (miss.n ? ' · tap to fix' : ''), 1 - miss.n / Math.max(1, a.total)]
       ];
       ins.className = 'readlist';
+      var missRow = rowsI[rowsI.length - 1];
       ins.innerHTML = rowsI.map(function (r) {
-        return '<div class="row"><span class="rk">' + esc(r[0]) + '</span><span class="rv">' + esc(r[1]) + '</span></div>';
+        var isMiss = r === missRow && miss.n > 0;
+        return '<div class="row"' + (isMiss ? ' data-miss="1" style="cursor:pointer"' : '') + '>' +
+          '<span class="rk">' + esc(r[0]) + '</span><span class="rv"' + (isMiss ? ' style="color:var(--warn)"' : '') + '>' + esc(r[1]) + '</span></div>';
       }).join('');
     }
   }
@@ -3003,6 +3067,12 @@ table.st td.z{color:var(--muted-2)}
       NS.switchView('register');
       NS.selectDay(k, true);
       if (idx != null) setTimeout(function () { NS.openSheet(k, +idx); }, 300);
+    });
+    document.addEventListener('click', function (ev) {
+      if (!ev.target.closest('[data-miss]')) return;
+      NS.S.rowFilter = '';
+      NS.S.onlyDay = '';
+      NS.switchView('register');
     });
     var b = $('#btnDashRegister');
     if (b) b.addEventListener('click', function () { NS.switchView('register'); });
@@ -3264,7 +3334,15 @@ table.st td.z{color:var(--muted-2)}
     NS.toast('Month exported as CSV.');
   }
 
-  /* One page a month for the file: totals, departments, sex, every day, and a signature line. */
+  function dayBlock(list, label) {
+    return '<div><table><thead><tr><th>' + label + '</th><th>Status</th><th>Patients</th></tr></thead><tbody>' +
+      list.map(function (x) {
+        return '<tr><td>' + x.d + '</td><td style="text-align:left;color:#64748b">' + esc(NS.ST[x.st].s) +
+          (x.note ? ' · ' + esc(x.note) : '') + '</td><td>' + (x.s.total || '–') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
+  /* One page a month for the file: totals, departments, every day, every week, signature. */
   function digest() {
     var mk = NS.S.curM || NS.mKey(new Date());
     var month = monthStats(mk);
@@ -3275,6 +3353,20 @@ table.st td.z{color:var(--muted-2)}
       if (st === 'working' && s1.total > 0) worked++;
       days.push({ d: d, k: k, s: s1, st: st, note: (NS.ent()[k] || {}).note || '' });
     }
+    /* weeks as the calendar draws them: Sunday to Saturday */
+    var weeks = [], cur = null;
+    days.forEach(function (x) {
+      var dow = new Date(x.k + 'T00:00:00').getDay();
+      if (!cur || dow === 0) {
+        cur = { from: x.d, to: x.d, total: 0, newC: 0, oldC: 0, worked: 0, k: x.k };
+        weeks.push(cur);
+      }
+      cur.to = x.d;
+      cur.total += x.s.total;
+      cur.newC += x.s.newC;
+      cur.oldC += x.s.oldC;
+      if (x.st === 'working' && x.s.total > 0) cur.worked++;
+    });
     var deptRows = [['Medicine', month.med], ['Surgery', month.surg], ['Gynec & Obs', month.gyn], ['Pediatrics', month.ped], ['Other / unspecified', month.other]]
       .filter(function (r) { return r[1] > 0; });
     var pctOf = function (v) { return month.total ? Math.round(v / month.total * 100) + '%' : '–'; };
@@ -3292,16 +3384,28 @@ table.st td.z{color:var(--muted-2)}
       '<div><b>' + month.avg + '</b><span>Average per day</span></div>' +
       '</div>' +
 
-      '<div class="cols2">' +
+      '<div class="cols3">' +
       '<div><table><thead><tr><th>Department</th><th>Patients</th><th>Share</th></tr></thead><tbody>' +
       deptRows.map(function (r) { return '<tr><td>' + esc(r[0]) + '</td><td>' + r[1] + '</td><td>' + pctOf(r[1]) + '</td></tr>'; }).join('') +
       '<tr class="total"><td>Total</td><td>' + month.total + '</td><td>100%</td></tr>' +
       '</tbody></table></div>' +
-      '<div><table><thead><tr><th>Day</th><th>Status</th><th>Patients</th></tr></thead><tbody>' +
-      days.map(function (x) {
-        return '<tr><td>' + x.d + '</td><td style="text-align:left;color:#64748b">' + esc(NS.ST[x.st].s) + (x.note ? ' · ' + esc(x.note) : '') + '</td><td>' + (x.s.total || '–') + '</td></tr>';
+      dayBlock(days.slice(0, Math.ceil(days.length / 2)), 'Day') +
+      dayBlock(days.slice(Math.ceil(days.length / 2)), 'Day') +
+      '</div>' +
+
+      '<table style="margin-top:12px"><thead><tr><th>Week</th><th>Patients</th><th>New</th><th>Follow-up</th><th>Working days</th></tr></thead><tbody>' +
+      weeks.map(function (w) {
+        var lbl = w.from === w.to ? String(w.from) : (w.from + '–' + w.to);
+        return '<tr><td>' + esc(lbl) + ' ' + esc(NS.fmtMonth(mk).split(' ')[0].slice(0, 3)) + '</td><td>' + w.total +
+          '</td><td>' + w.newC + '</td><td>' + w.oldC + '</td><td>' + w.worked + '</td></tr>';
       }).join('') +
-      '</tbody></table></div></div>' +
+      '</tbody></table>' +
+
+      (function () {
+        var miss = NS.missingDiagnosis(mk);
+        return miss.n ? '<div style="margin-top:10px;font-size:11px;color:#b26b00;font-weight:700">' +
+          miss.n + ' entr' + (miss.n === 1 ? 'y has' : 'ies have') + ' no diagnosis or treatment recorded.</div>' : '';
+      })() +
 
       '<div class="sign"><span>Signature: ____________________</span><span>' + esc(NS.db.current) + '</span><span>Prepared from the OPD register</span></div>' +
       '</div>';
@@ -3358,7 +3462,7 @@ table.st td.z{color:var(--muted-2)}
   'use strict';
   var $ = NS.$, esc = NS.esc;
 
-  var cache = null, cacheKey = '';
+  var cache = null, cacheKey = '', sortMode = 'new';
 
   function index(allLoc) {
     var key = NS.db.current + '|' + allLoc;
@@ -3378,16 +3482,23 @@ table.st td.z{color:var(--muted-2)}
   }
   function invalidate() { cache = null; }
 
+  /* Highlight by splitting the RAW text and escaping each piece. Escaping first and
+     then matching would let a search for "a" break "&amp;" into "&<mark>a</mark>mp;",
+     which the browser prints literally. */
   function hl(text, terms) {
-    var s = String(text || '');
-    if (!terms.length) return esc(s);
-    var out = esc(s);
-    terms.forEach(function (t) {
-      if (!t) return;
-      var re = new RegExp('(' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
-      out = out.replace(re, '<mark>$1</mark>');
+    var str = String(text == null ? '' : text);
+    var pats = (terms || []).filter(Boolean).map(function (t) {
+      return t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     });
-    return out;
+    if (!pats.length) return esc(str);
+    var re = new RegExp('(' + pats.join('|') + ')', 'ig');
+    var out = '', last = 0, m;
+    while ((m = re.exec(str)) !== null) {
+      out += esc(str.slice(last, m.index)) + '<mark>' + esc(m[0]) + '</mark>';
+      last = m.index + m[0].length;
+      if (m[0] === '') re.lastIndex++;
+    }
+    return out + esc(str.slice(last));
   }
 
   function render() {
@@ -3398,7 +3509,15 @@ table.st td.z{color:var(--muted-2)}
     var rows = index(allLoc);
     var terms = q.split(/\s+/).filter(Boolean);
     var hits = terms.length ? rows.filter(function (r) { return terms.every(function (t) { return r.hay.indexOf(t) !== -1; }); }) : rows;
-    var limited = hits.slice(0, 300);
+    var sorted = hits.slice();
+    if (sortMode === 'old') sorted.reverse();
+    else if (sortMode === 'name') sorted.sort(function (a, b) { return (a.name || '\uffff').localeCompare(b.name || '\uffff'); });
+    else if (sortMode === 'opd') sorted.sort(function (a, b) {
+      var an = parseInt(a.opd, 10), bn = parseInt(b.opd, 10);
+      if (!isNaN(an) && !isNaN(bn) && an !== bn) return an - bn;
+      return String(a.opd).localeCompare(String(b.opd));
+    });
+    var limited = sorted.slice(0, 300);
     var sub = $('#searchSub');
     if (sub) sub.textContent = terms.length
       ? hits.length + ' match' + (hits.length === 1 ? '' : 'es') + (hits.length > 300 ? ' (first 300 shown)' : '') + (allLoc ? ' · all locations' : ' · ' + NS.db.current)
@@ -3449,6 +3568,8 @@ table.st td.z{color:var(--muted-2)}
     }
     var chk = $('#searchAllLoc');
     if (chk) chk.addEventListener('change', render);
+    var srt = $('#searchSort');
+    if (srt) srt.addEventListener('change', function () { sortMode = srt.value; render(); });
     var box = $('#hits');
     if (box) {
       box.addEventListener('click', function (ev) {
@@ -3595,10 +3716,17 @@ table.st td.z{color:var(--muted-2)}
   function deleteLocation() {
     var name = NS.db.current;
     if (NS.locNames().length <= 1) { alert('You must keep at least one location.'); return; }
-    if (!confirm('Delete "' + name + '" and every entry in it?\n\nThis cannot be undone.')) return;
+    if (!confirm('Delete "' + name + '" and every entry in it?')) return;
+    var snapshot = JSON.parse(JSON.stringify(NS.db.locations[name]));
     NS.delLoc(name);
     afterLocationChange();
-    NS.toast('Location deleted.');
+    NS.toast('Location "' + name + '" deleted.', 'Undo', function () {
+      NS.db.locations[name] = snapshot;
+      NS.db.current = name;
+      NS.saveNow();
+      afterLocationChange();
+      NS.toast('"' + name + '" restored.');
+    });
   }
 
   /* ---------------- info panel ---------------- */

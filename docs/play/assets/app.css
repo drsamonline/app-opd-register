@@ -546,7 +546,10 @@ table.reg td input[type="date"]::-webkit-calendar-picker-indicator{opacity:.45;c
 .digest th:first-child,.digest td:first-child{text-align:left}
 .digest td{padding:4px 8px;border:1px solid #e8eef5}
 .digest tr.total td{font-weight:800;background:#eaf1ff}
-.digest .cols2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}
+.digest .cols2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px;align-items:start}
+.digest .cols3{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:12px;margin-top:12px;align-items:start}
+.digest .cols3 th,.digest .cols3 td{padding:3px 6px;font-size:10.5px}
+.digest table{margin-top:0}
 .digest .sign{margin-top:18px;display:flex;justify-content:space-between;font-size:11px;color:#64748b;border-top:1px solid #dbe3ee;padding-top:8px}
 @media print{.digest .dk div,.digest th,.digest tr.total td{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
 
