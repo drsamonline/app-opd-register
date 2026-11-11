@@ -326,7 +326,7 @@ main{grid-area:main;min-width:0;padding:14px 16px 28px;overflow-x:hidden}
 
 /* desktop table */
 .tablewrap{overflow:auto;max-height:calc(100dvh - 320px)}
-table.reg{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:1248px}
+table.reg{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:1142px}
 table.reg thead th{
   position:sticky;top:0;z-index:5;background:var(--panel);
   font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted-2);
@@ -419,6 +419,32 @@ tr:hover .rowdel{opacity:1}
   padding-bottom:calc(12px + env(safe-area-inset-bottom));background:var(--panel);
 }
 .sheet .sf .btn{flex:1;min-height:44px}
+
+.rowfilter{
+  display:flex;align-items:center;gap:5px;height:28px;padding:0 8px;border:1px solid var(--line);
+  border-radius:7px;background:var(--panel);color:var(--muted-2);min-width:0;max-width:170px;
+}
+.rowfilter:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-l)}
+.rowfilter input{border:0;background:transparent;outline:none;width:100%;min-width:0;font-size:12px;color:var(--ink)}
+
+.hist{margin-top:6px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+.hist .hh{
+  display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel-2);
+  border-bottom:1px solid var(--line-2);font-size:11px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.05em;color:var(--muted-2);
+}
+.hist .hh .grow{flex:1}
+.hist .hv{padding:9px 10px;border-bottom:1px solid var(--line-2)}
+.hist .hv:last-child{border-bottom:0}
+.hist .hv .hd{display:flex;align-items:baseline;gap:8px;font-size:12px;font-weight:750;color:var(--ink)}
+.hist .hv .hd .grow{flex:1}
+.hist .hv .hd small{font-weight:600;color:var(--muted-2);font-size:11px}
+.hist .hv .hb{font-size:12px;color:var(--ink-2);margin-top:2px;line-height:1.45}
+.hist .hv .hb span{color:var(--muted)}
+.hist .hv .ha{margin-top:5px}
+.hist .empty2{padding:12px 10px;font-size:12px;color:var(--muted)}
+tr.drow td.sr{cursor:pointer;color:var(--accent-d);font-weight:700}
+tr.drow td.sr:hover{background:var(--accent-l)}
 
 .rangepanel{
   display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;

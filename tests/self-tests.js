@@ -161,6 +161,28 @@ eq('follow-ups: the right patient', due[0].row.name, 'Due Soon');
 eq('follow-ups: knows where it came from', due[0].seen, '2026-03-05');
 ok('follow-ups: carries the row index', typeof due[0].i === 'number');
 
+/* ---------- patient history ---------- */
+const hist = NS.patientHistory('100', '2026-03-02', 1);
+eq('history: the other visit of the same OPD', hist.length, 1);
+eq('history: it is the earlier one', hist[0].date, '2026-03-01');
+eq('history: it carries the row', hist[0].row.diagnosis, 'Fever');
+eq('history: unknown OPD is empty', NS.patientHistory('999').length, 0);
+eq('history: blank OPD is empty', NS.patientHistory('').length, 0);
+eq('history: excluding the current row', NS.patientHistory('100', '2026-03-01', 0).length, 1);
+
+/* ---------- the next number in the series ---------- */
+eq('next OPD: max + 1, keeping the width', NS.nextOpd(), '203');
+NS.ensureD('2026-03-06').rows[0] = Object.assign({}, NS.ER, { opd: '0999' });
+eq('next OPD: leading zeros are preserved', NS.nextOpd(), '1000');
+
+/* ---------- ages the way they are said ---------- */
+eq('age label: an adult', NS.ageLabel('34'), '34 y');
+eq('age label: an infant in months', NS.ageLabel('0.5'), '6 mo');
+eq('age label: months already written', NS.ageLabel('8 mo'), '8 mo');
+eq('age label: a toddler', NS.ageLabel('1.5'), '18 mo');
+eq('age label: empty', NS.ageLabel(''), '');
+eq('age label: junk passes through', NS.ageLabel('unknown'), 'unknown');
+
 /* ---------- department memory ---------- */
 const dh = NS.deptHistory(5);
 ok('dept history: most used first', dh.length > 0 && dh[0].n >= dh[dh.length - 1].n, dh);

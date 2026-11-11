@@ -156,6 +156,9 @@
           <div class="sub" id="regSub">Every day of the month, ready to type into</div>
         </div>
         <div class="grow"></div>
+        <button class="btn sm ghost" id="btnWeekPrev" hidden title="Previous week">‹</button>
+        <span class="hint" id="weekLbl" hidden style="font-size:12px;font-weight:700;color:var(--muted)"></span>
+        <button class="btn sm ghost" id="btnWeekNext" hidden title="Next week">›</button>
         <button class="btn sm" id="btnPrintReg"><svg width="14" height="14"><use href="#i-print"/></svg>Print</button>
       </div>
 
@@ -178,11 +181,19 @@
 
       <section class="panel">
         <div class="regbar">
+          <div class="filter" id="regScope" role="group" aria-label="Scope">
+            <button data-scope="month" aria-pressed="true">Month</button>
+            <button data-scope="week" aria-pressed="false">Week</button>
+          </div>
           <div class="filter" id="regFilter" role="group" aria-label="Filter days">
             <button data-filter="all" aria-pressed="true">All days</button>
             <button data-filter="data" aria-pressed="false">With patients</button>
             <button data-filter="today" aria-pressed="false">Today</button>
           </div>
+          <label class="rowfilter" title="Show only rows that match">
+            <svg width="13" height="13"><use href="#i-search"/></svg>
+            <input id="rowFilter" type="search" placeholder="Filter rows" autocomplete="off"/>
+          </label>
           <div class="grow"></div>
           <button class="btn sm ghost" id="btnRange" aria-expanded="false" title="Mark a range of days">Days…</button>
           <div class="chips" id="chips" aria-label="Recent patients"></div>
@@ -401,6 +412,7 @@
     <button class="btn icon ghost" id="btnSheetClose" aria-label="Close"><svg width="17" height="17"><use href="#i-close"/></svg></button>
   </div>
   <div class="sb" id="sheetBody">
+    <div id="sheetHistory"></div>
     <div class="formgrid">
       <div class="field"><label for="f-opd">OPD no.</label><input id="f-opd" data-f="opd" inputmode="text" autocomplete="off" list="opdList" placeholder="e.g. 24817"/></div>
       <div class="field"><label for="f-caseType">Case</label><select id="f-caseType" data-f="caseType"><option>New</option><option>Old</option></select></div>
@@ -409,6 +421,7 @@
       <div class="field"><label for="f-sex">Sex</label><select id="f-sex" data-f="sex"><option value="">—</option><option value="M">Male</option><option value="F">Female</option><option value="O">Other</option></select></div>
       <div class="field full"><label for="f-department">Department</label><input id="f-department" data-f="department" autocomplete="off" list="deptList" placeholder="Medicine…"/></div>
       <div class="chips full" id="deptChips" style="margin-top:-4px"></div>
+      <div class="chips full" id="opdChip"></div>
       <div class="field"><label for="f-phone">Mobile</label><input id="f-phone" data-f="phone" inputmode="tel" autocomplete="off" placeholder="Optional"/></div>
       <div class="field"><label for="f-followUp">Follow-up</label><input id="f-followUp" data-f="followUp" type="date"/></div>
       <div class="field full"><label for="f-address">Address</label><input id="f-address" data-f="address" autocomplete="off" placeholder="Village / area"/></div>

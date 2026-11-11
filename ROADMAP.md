@@ -3,22 +3,25 @@
 Ordered by *value per line of code*. Everything here is meant to be small enough to keep the
 app one file — the moment a feature needs a framework, it belongs in another project.
 
-## Shipped in 3.1.0
+## Shipped
 
-Follow-up date + mobile number · follow-ups-due panel · monthly digest · duplicate patient ·
-DOB→age · department memory · bulk day status · print one day · undo an import.
+**3.1.0** — follow-up date + mobile number · follow-ups-due panel · monthly digest ·
+duplicate patient · DOB→age · department memory · bulk day status · print one day ·
+undo an import.
+
+**3.2.0** — patient history with copy-prescription · next OPD number suggestion · row filter ·
+week scope · undo for a bulk range · ages as months.
 
 ## Next (small, high value)
 
 | Item | Why | Cost |
 |---|---|---|
-| **Patient history panel** — every visit for one OPD number, oldest first, with the gaps | The question actually asked in the room is "what did I give last time" | M |
-| **Suggest the next OPD number** from the last one typed today (never owned, only suggested) | Typing the series by hand invites a duplicate | S |
-| **Filter the rows of a day** by a word, on the day header | A nine-patient day is fine; a thirty-patient camp is not | S |
-| **Infants as months** — show `8 mo` instead of `0` wherever an age is printed | `0y` in a pediatric line reads like a bug | XS |
-| **Undo for a bulk day range** — the same toast as a single day | The most destructive action in the app today has no undo | S |
-| **Copy a previous visit's diagnosis + treatment** into a new row of the same patient | Duplicate covers the person, not the prescription | S |
-| **A weekly view** — seven day columns, for a week at a glance | The month is long; the week is what gets reviewed | M |
+| **A week at a glance** — seven *columns*, not seven sections | The week scope lists days; comparing them side by side is the actual job | M |
+| **Print the week** — one A4 with the seven days and a weekly total | What a weekly review asks for | S |
+| **History as a printable slip** — one patient's visits on half a page | Handed to the patient, or filed | S |
+| **"Repeat last visit" without opening history** — a row action | The copy exists; reaching it takes two taps | XS |
+| **Department-level follow-up counts** — due next week, by department | Staffing the OPD, not the file | S |
+| **A patient's gaps** — "last seen 3 months ago" on the history header | The interval matters as much as the visit | XS |
 
 ## Then (worth the code)
 

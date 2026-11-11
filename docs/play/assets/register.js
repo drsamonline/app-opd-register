@@ -5,6 +5,8 @@
   var S = NS.S;
 
   var mqNarrow = window.matchMedia('(max-width: 900px)');
+  S.scope = 'month';
+  S.rowFilter = '';
   function narrow() { return mqNarrow.matches; }
 
   /* ================= CALENDAR ================= */
@@ -58,13 +60,14 @@
   }
 
   function isOpen(k) {
+    if (S.rowFilter && rowsMatching(k).length) return true;
     if (Object.prototype.hasOwnProperty.call(S.open, k)) return S.open[k];
     /* a day opens itself when it has patients, is the selected day, or is today */
     return NS.cnt(k) > 0 || k === S.curD || k === NS.tKey();
   }
 
   /* ================= ROW MARKUP (desktop) ================= */
-  var COLS = [34, 90, 56, 124, 148, 50, 48, 98, 132, 158, 164, 86, 30];
+  var COLS = [34, 86, 52, 118, 140, 46, 44, 92, 120, 150, 152, 80, 28];
   function sel(v, cur) { return v === cur ? ' selected' : ''; }
 
   function rowHTML(r, i) {
@@ -85,20 +88,21 @@
       '<td class="acts"><button class="rowdel" data-del="' + i + '" title="Delete row" aria-label="Delete row">&times;</button></td>';
   }
 
-  function tableHTML(k, rows) {
+  function tableHTML(k, list) {
     var cg = '<colgroup>' + COLS.map(function (w) { return '<col style="width:' + w + 'px">'; }).join('') + '</colgroup>';
     var head = '<thead><tr><th>#</th><th>OPD no.</th><th>Case</th><th>Department</th><th>Name</th><th>Age</th><th>Sex</th><th>Mobile</th><th>Address</th><th>Diagnosis</th><th>Treatment</th><th>Follow-up</th><th></th></tr></thead>';
-    var body = rows.map(function (r, i) {
-      return '<tr class="drow" data-date="' + k + '" data-idx="' + i + '">' + rowHTML(r, i) + '</tr>';
+    var body = list.map(function (x) {
+      return '<tr class="drow" data-date="' + k + '" data-idx="' + x.i + '">' + rowHTML(x.r, x.i) + '</tr>';
     }).join('');
     return '<div class="tablewrap"><table class="reg" style="table-layout:fixed">' + cg + head + '<tbody data-tbody="' + k + '">' + body + '</tbody></table></div>';
   }
 
-  function cardsHTML(k, rows) {
-    var out = rows.map(function (r, i) {
+  function cardsHTML(k, list) {
+    var out = list.map(function (x) {
+      var r = x.r, i = x.i;
       if (!NS.hasD(r)) return '';
       var ini = (r.name || '?').trim().split(/\s+/).map(function (w) { return w[0] || ''; }).join('').slice(0, 2).toUpperCase();
-      var meta = [r.age ? r.age + 'y' : '', r.sex === 'M' ? 'Male' : r.sex === 'F' ? 'Female' : r.sex === 'O' ? 'Other' : '', r.department || '', r.diagnosis || '']
+      var meta = [NS.ageLabel(r.age), r.sex === 'M' ? 'Male' : r.sex === 'F' ? 'Female' : r.sex === 'O' ? 'Other' : '', r.department || '', r.diagnosis || '']
         .filter(Boolean).join(' · ');
       var due = r.followUp ? '<span class="due">↻ ' + esc(r.followUp.slice(8) + '/' + r.followUp.slice(5, 7)) + '</span>' : '';
       return '<button class="pcard" data-open="' + i + '">' +
@@ -107,8 +111,9 @@
         '<span class="pd">' + esc(meta || 'No details yet') + '</span></span>' +
         '<span class="pt num">' + esc(r.opd || '—') + due + '</span></button>';
     }).join('');
-    var filled = rows.filter(NS.hasD).length;
-    var empty = rows.length - filled;
+    var all = NS.ensureD(k).rows;
+    var filled = all.filter(NS.hasD).length;
+    var empty = all.length - filled;
     out += '<button class="addrow" data-add="' + k + '"><svg width="14" height="14"><use href="#i-plus"/></svg>' +
       (empty ? 'Add patient' : 'Add another patient') + '</button>';
     return '<div class="cards">' + out + '</div>';
@@ -134,12 +139,57 @@
       '<button data-printday="' + k + '" title="Print this day" aria-label="Print this day"><svg width="13" height="13"><use href="#i-print"/></svg></button>' +
       '<button class="danger" data-clear="' + k + '" title="Clear this day" aria-label="Clear this day"><svg width="13" height="13"><use href="#i-trash"/></svg></button>' +
       '</span></div>';
-    if (open) h += narrow() ? cardsHTML(k, e.rows) : tableHTML(k, e.rows);
+    if (open) {
+      var list = rowsMatching(k);
+      if (S.rowFilter && !list.length) {
+        h += '<div class="empty" style="padding:14px">No row in this day matches “' + esc(S.rowFilter) + '”.</div>';
+      } else {
+        h += narrow() ? cardsHTML(k, list) : tableHTML(k, list);
+      }
+    }
     return h + '</section>';
   }
 
+  /* the rows of a day that survive the row filter, each with its real index */
+  function rowsMatching(k) {
+    var rows = NS.ensureD(k).rows, q = S.rowFilter.trim().toLowerCase();
+    var out = [];
+    rows.forEach(function (r, i) {
+      if (q) {
+        if (!NS.hasD(r)) return;
+        var hay = [r.opd, r.name, r.department, r.diagnosis, r.treatment, r.address, r.phone].join(' ').toLowerCase();
+        if (hay.indexOf(q) === -1) return;
+      }
+      out.push({ r: r, i: i });
+    });
+    return out;
+  }
+
+  /* Sunday-to-Saturday, the week the selected day falls in */
+  function weekStart(k) {
+    var d = new Date(k + 'T00:00:00');
+    d.setDate(d.getDate() - d.getDay());
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+  function weekDays(k) {
+    var start = new Date(weekStart(k) + 'T00:00:00'), out = [];
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(start.getTime());
+      d.setDate(start.getDate() + i);
+      out.push(d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()));
+    }
+    return out;
+  }
+
   function visibleDays() {
-    var mk = S.curM, out = [];
+    var out = [];
+    if (S.scope === 'week') {
+      out = weekDays(S.curD || NS.tKey());
+      if (S.filter === 'data') out = out.filter(function (k) { return NS.cnt(k) > 0; });
+      if (S.filter === 'today') out = out.filter(function (k) { return k === NS.tKey(); });
+      return out;
+    }
+    var mk = S.curM;
     for (var d = 1, n = NS.dim(mk); d <= n; d++) {
       var k = mk + '-' + pad(d);
       if (S.filter === 'data' && NS.cnt(k) === 0) continue;
@@ -156,10 +206,24 @@
     var days = visibleDays();
     host.innerHTML = days.length ? days.map(dayHTML).join('')
       : '<div class="empty"><b>No days to show</b>Switch the filter, or pick another month.</div>';
+    var wk = S.scope === 'week';
+    var wl = $('#weekLbl'), wp = $('#btnWeekPrev'), wn = $('#btnWeekNext');
+    if (wl) {
+      wl.hidden = !wk;
+      if (wk) {
+        var days7 = weekDays(S.curD || NS.tKey());
+        var a = new Date(days7[0] + 'T00:00:00'), b = new Date(days7[6] + 'T00:00:00');
+        wl.textContent = a.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' – ' +
+          b.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+      }
+    }
+    if (wp) wp.hidden = !wk;
+    if (wn) wn.hidden = !wk;
     var t = $('#regTitle');
     if (t) t.textContent = NS.db.current;
     var sub = $('#regSub');
-    if (sub) sub.textContent = NS.fmtMonth(S.curM) + ' · ' + NS.monthCount(S.curM) + ' patients · ' + NS.locNames().length + ' location' + (NS.locNames().length > 1 ? 's' : '');
+    if (sub) sub.textContent = (wk ? 'Week of ' + NS.fmtDay(weekStart(S.curD || NS.tKey())) : NS.fmtMonth(S.curM)) +
+      ' · ' + NS.monthCount(S.curM) + ' patients this month · ' + NS.locNames().length + ' location' + (NS.locNames().length > 1 ? 's' : '');
   }
 
   /* ================= chips ================= */
@@ -304,6 +368,43 @@
   /* ================= patient sheet ================= */
   var sheetCtx = { k: null, i: null, prevFocus: null };
 
+  /* a suggested next number, offered — never filled in behind the user's back */
+  function renderNextOpd(row) {
+    var box = $('#opdChip');
+    if (!box) return;
+    var nxt = NS.nextOpd();
+    if (!nxt || String(row.opd || '').trim()) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.style.display = '';
+    box.innerHTML = '<button type="button" class="chip" data-usenext="' + esc(nxt) + '">Next number <b>' + esc(nxt) + '</b></button>';
+  }
+
+  /* what happened last time, and a one-tap way to repeat the prescription */
+  function renderHistory(k, i, row) {
+    var box = $('#sheetHistory');
+    if (!box) return;
+    var list = NS.patientHistory(row.opd, k, i);
+    if (!list.length) {
+      box.innerHTML = '<div class="hist"><div class="hh">Previous visits<span class="grow"></span>' +
+        (String(row.opd || '').trim() ? 'none recorded' : 'add an OPD no.') + '</div></div>';
+      return;
+    }
+    var last = list[0];
+    box.innerHTML = '<div class="hist"><div class="hh">Previous visits<span class="grow"></span>' + list.length + '</div>' +
+      list.slice(0, 6).map(function (v) {
+        var bits = [v.row.department, v.row.diagnosis].filter(Boolean).map(esc).join(' · ') ||
+          (v.row.treatment ? '' : '<span>no diagnosis recorded</span>');
+        var tx = v.row.treatment ? '<div class="hb"><span>Rx</span> ' + esc(v.row.treatment) + '</div>' : '';
+        return '<div class="hv"><div class="hd"><b>' + esc(NS.fmtDay(v.date)) + '</b>' +
+          '<small>' + esc(v.row.caseType || '') + '</small><span class="grow"></span>' +
+          '<small>' + esc(NS.ageLabel(v.row.age)) + '</small></div>' +
+          '<div class="hb">' + (bits || '<span>no diagnosis</span>') + '</div>' + tx +
+          '<div class="ha"><button type="button" class="btn sm ghost" data-copyvisit="' + v.date + '" data-ci="' + v.i + '">Copy this prescription</button></div></div>';
+      }).join('') +
+      (list.length > 6 ? '<div class="empty2">+' + (list.length - 6) + ' older visit' + (list.length - 6 > 1 ? 's' : '') + '</div>' : '') +
+      '</div>';
+    sheetCtx.lastVisit = last;
+  }
+
   /* the departments this location actually uses, most used first */
   function renderDeptChips() {
     var box = $('#deptChips');
@@ -340,6 +441,8 @@
     $('#btnSheetDel').style.visibility = has ? 'visible' : 'hidden';
     $('#btnSheetDup').style.visibility = has ? 'visible' : 'hidden';
     renderDeptChips();
+    renderNextOpd(row);
+    renderHistory(k, i, row);
     $('#sheetHint').textContent = has ? 'Editing ' + (row.name || 'this patient') + ' — changes save as you type.' : 'Saves as you type.';
     $('#sheet').classList.add('on');
     $('#sheet').setAttribute('aria-hidden', 'false');
@@ -409,6 +512,8 @@
             if (inp) inp.value = copy[f];
           });
           if (Object.keys(copy).length) NS.toast('Filled from OPD ' + el.value + '.');
+          renderHistory(sheetCtx.k, sheetCtx.i, row);
+          renderNextOpd(row);
         }
       }
       NS.saveNow();
@@ -425,6 +530,37 @@
           sheetStep(1);
         }
       }
+    });
+
+    $('#opdChip').addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-usenext]');
+      if (!b) return;
+      var inp = $('#f-opd');
+      if (!inp) return;
+      inp.value = b.dataset.usenext;
+      var e = NS.ensureD(sheetCtx.k), row = e.rows[sheetCtx.i];
+      if (row) row.opd = b.dataset.usenext;
+      renderNextOpd(row || {});
+      renderHistory(sheetCtx.k, sheetCtx.i, row || {});
+      NS.sched();
+    });
+
+    $('#sheetHistory').addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-copyvisit]');
+      if (!b) return;
+      var k = b.dataset.copyvisit, i = +b.dataset.ci;
+      var rec = ((NS.ent()[k] || {}).rows || [])[i];
+      if (!rec) return;
+      var e = NS.ensureD(sheetCtx.k), row = e.rows[sheetCtx.i];
+      if (!row) return;
+      ['diagnosis', 'treatment'].forEach(function (f) {
+        if (!rec[f]) return;
+        row[f] = rec[f];
+        var inp = $('#f-' + f);
+        if (inp) inp.value = rec[f];
+      });
+      NS.saveNow();
+      NS.toast('Copied the prescription from ' + NS.fmtDay(k) + '.');
     });
 
     $('#deptChips').addEventListener('click', function (ev) {
@@ -467,9 +603,10 @@
     if (!from || !to) { NS.toast('Pick both dates.'); return 0; }
     if (from > to) { var t = from; from = to; to = t; }
     var cur = new Date(from + 'T00:00:00'), end = new Date(to + 'T00:00:00');
-    var n = 0, guard = 0;
+    var n = 0, guard = 0, snapshot = {};
     while (cur <= end && guard < 400) {
       var k = cur.getFullYear() + '-' + pad(cur.getMonth() + 1) + '-' + pad(cur.getDate());
+      snapshot[k] = NS.daySnapshot(k);
       var e = NS.ensureD(k);
       e.status = status;
       if (note) e.note = note;
@@ -477,7 +614,11 @@
       cur.setDate(cur.getDate() + 1); guard++;
     }
     NS.saveNow(); renderAll();
-    NS.toast(n + ' day' + (n === 1 ? '' : 's') + ' marked ' + NS.ST[status].l.toLowerCase() + '.');
+    NS.toast(n + ' day' + (n === 1 ? '' : 's') + ' marked ' + NS.ST[status].l.toLowerCase() + '.', 'Undo', function () {
+      Object.keys(snapshot).forEach(function (k) { NS.restoreDay(k, snapshot[k]); });
+      renderAll();
+      NS.toast('Range restored.');
+    });
     return n;
   }
 
@@ -556,6 +697,12 @@
         renderRegister();
         return;
       }
+      var sr = ev.target.closest('td.sr');
+      if (sr) {
+        var rowTr = sr.closest('tr[data-date]');
+        if (rowTr) openSheet(rowTr.dataset.date, +rowTr.dataset.idx);
+        return;
+      }
       var open = ev.target.closest('[data-open]');
       if (open) { openSheet(open.closest('.day').dataset.date, +open.dataset.open); return; }
       var drow = ev.target.closest('tr.drow');
@@ -592,6 +739,30 @@
       if (!c) return;
       NS.saveNow(); selectDay(c.dataset.date, true);
     });
+
+    $('#regScope').addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-scope]');
+      if (!b) return;
+      S.scope = b.dataset.scope;
+      $$('#regScope button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      if (S.scope === 'week' && S.curD.slice(0, 7) !== S.curM) S.curD = S.curM + '-01';
+      renderRegister();
+    });
+
+    var rf = $('#rowFilter');
+    if (rf) {
+      rf.addEventListener('input', NS.debounce(function () {
+        S.rowFilter = rf.value;
+        renderRegister();
+      }, 180));
+      rf.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Escape') { rf.value = ''; S.rowFilter = ''; renderRegister(); }
+      });
+    }
+
+    var wp = $('#btnWeekPrev'), wn = $('#btnWeekNext');
+    if (wp) wp.addEventListener('click', function () { shiftWeek(-1); });
+    if (wn) wn.addEventListener('click', function () { shiftWeek(1); });
 
     $('#regFilter').addEventListener('click', function (ev) {
       var b = ev.target.closest('[data-filter]');
@@ -647,6 +818,16 @@
     var sm = $('#statMonth'); if (sm && !sm.value) sm.value = S.curM;
   }
 
+  function shiftWeek(dir) {
+    var d = new Date((S.curD || NS.tKey()) + 'T00:00:00');
+    d.setDate(d.getDate() + 7 * dir);
+    var k = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    S.curD = k;
+    if (S.curM !== k.slice(0, 7)) { S.curM = k.slice(0, 7); NS.ensureM(S.curM); NS.syncMonthInputs(); }
+    NS.saveNow();
+    renderCal(); renderRegister(); renderChips();
+  }
+
   function renderAll() {
     renderCal(); renderRegister(); renderChips(); refOpdList(); markSelected();
     NS.emit('render');
@@ -667,6 +848,9 @@
   }
 
   NS.duplicateCurrent = duplicateCurrent;
+  NS.shiftWeek = shiftWeek;
+  NS.weekDays = weekDays;
+  NS.rowsMatching = rowsMatching;
   NS.renderCal = renderCal;
   NS.printDay = printDay;
   NS.duplicate = duplicate;

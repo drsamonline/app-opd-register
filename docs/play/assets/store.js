@@ -294,6 +294,53 @@
     return out;
   }
 
+  /* every other visit recorded under this OPD number, newest first */
+  function patientHistory(opd, skipKey, skipIdx) {
+    var key = String(opd || '').trim().toLowerCase();
+    if (!key) return [];
+    var E = ent(), out = [];
+    Object.keys(E).sort().reverse().forEach(function (k) {
+      ((E[k] || {}).rows || []).forEach(function (r, i) {
+        if (String(r.opd || '').trim().toLowerCase() !== key) return;
+        if (k === skipKey && i === skipIdx) return;
+        out.push({ date: k, i: i, row: r });
+      });
+    });
+    return out;
+  }
+
+  /* the next number in this location's series — a suggestion, never applied by itself */
+  function nextOpd() {
+    var E = ent(), best = 0, width = 0;
+    Object.keys(E).forEach(function (k) {
+      ((E[k] || {}).rows || []).forEach(function (r) {
+        var raw = String(r.opd || '').trim();
+        if (!/^\d+$/.test(raw)) return;
+        var n = parseInt(raw, 10);
+        if (n >= best) { best = n; width = Math.max(width, raw.length); }
+      });
+    });
+    if (!best) return '';
+    var next = String(best + 1);
+    while (next.length < width) next = '0' + next;
+    return next;
+  }
+
+  /* an age the way it is said out loud: 34, 8 mo, 1 y 6 mo */
+  function ageLabel(v) {
+    var s = String(v == null ? '' : v).trim();
+    if (!s) return '';
+    var y = ageYears(s);
+    if (y == null) return s;
+    if (y < 2) {
+      var months = Math.round(y * 12);
+      if (months <= 0) return s;
+      return months + ' mo';
+    }
+    if (y < 10 && Math.abs(y - Math.round(y)) > 0.05) return y.toFixed(1) + ' y';
+    return Math.round(y) + ' y';
+  }
+
   /* the departments used in this location, most used first */
   function deptHistory(limit) {
     var counts = {}, E = ent();
@@ -439,6 +486,7 @@
     var mk = mKey(base);
     var n = dim(mk);
     var opd = 24800;
+    var seen = [];
     for (var d = 1; d <= n; d++) {
       var k = mk + '-' + pad(d);
       var wd = new Date(k + 'T00:00:00').getDay();
@@ -448,6 +496,23 @@
       for (var i = 0; i < count; i++) {
         var di = (d + i) % depts.length;
         var sex = depts[di] === 'Gynec & Obs' ? 'F' : ((d + i) % 2 ? 'M' : 'F');
+        /* every fourth patient is a returning one: same OPD number and identity, new
+           diagnosis — so the history panel has something to show in the demo. */
+        if (seen.length > 3 && (d + i) % 4 === 0) {
+          var prev = seen[(d * 3 + i * 7) % seen.length];
+          rows[i] = {
+            opd: prev.opd, caseType: 'Old', department: prev.department, name: prev.name,
+            age: prev.age, sex: prev.sex, address: prev.address,
+            diagnosis: dx[(d + i + 3) % dx.length] + ' (review)',
+            treatment: tx[(d + i + 2) % tx.length],
+            phone: prev.phone,
+            followUp: ((d + i) % 6 === 0) ? (function () {
+              var f = new Date(); f.setDate(f.getDate() + ((d + i) % 12) + 1);
+              return f.getFullYear() + '-' + pad(f.getMonth() + 1) + '-' + pad(f.getDate());
+            })() : ''
+          };
+          continue;
+        }
         rows[i] = {
           opd: String(++opd),
           caseType: (i % 3 === 0) ? 'New' : 'Old',
@@ -467,6 +532,7 @@
             : ''
         };
       }
+      for (var z = 0; z < count; z++) if (rows[z] && rows[z].opd && seen.indexOf(rows[z]) === -1) seen.push(rows[z]);
       while (rows.length < Math.max(DROWS, count + 1)) rows.push(Object.assign({}, ER));
       loc.entries[k] = { status: st, note: d === 5 ? 'Free camp — 40 screened' : '', rows: rows };
     }
@@ -478,6 +544,7 @@
   NS.tKey = todayKey; NS.mKey = mKey; NS.fmtDay = fmtDay; NS.fmtMonth = fmtMonth; NS.fmtMonthShort = fmtMonthShort;
   NS.hasD = hasD; NS.blankRows = blankRows; NS.ageYears = ageYears; NS.deptK = deptK; NS.debounce = debounce;
   NS.normaliseAge = normaliseAge; NS.dueFollowUps = dueFollowUps; NS.deptHistory = deptHistory; NS.DF_ALL = DF_ALL;
+  NS.patientHistory = patientHistory; NS.nextOpd = nextOpd; NS.ageLabel = ageLabel;
   NS.ER = ER; NS.DF = DF; NS.DROWS = DROWS; NS.ST = ST; NS.SO = SO;
   NS.S = S;
   Object.defineProperty(NS, 'db', { get: function () { return DB; } });

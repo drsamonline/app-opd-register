@@ -33,7 +33,10 @@ browser on your device; the page makes no network request at all.
 
 Screens at both widths: [`docs/assets/app-desktop.png`](docs/assets/app-desktop.png),
 [`docs/assets/app-mobile.png`](docs/assets/app-mobile.png),
-[`docs/assets/app-sheet.png`](docs/assets/app-sheet.png) (the phone editor) and
+[`docs/assets/app-sheet.png`](docs/assets/app-sheet.png) (the phone editor),
+[`docs/assets/app-history.png`](docs/assets/app-history.png) (history in the editor),
+[`docs/assets/app-week.png`](docs/assets/app-week.png) (week scope + row filter),
+[`docs/assets/app-digest.png`](docs/assets/app-digest.png) (the printable digest) and
 [`docs/assets/app-stats.png`](docs/assets/app-stats.png). Badges are drawn locally by
 `scripts/badges.py`; the icon set by `scripts/icons.py`. Nothing here is fetched from a
 badge service, because an offline-first app should not need the internet to describe itself.
@@ -43,7 +46,7 @@ badge service, because an offline-first app should not need the internet to desc
 `docs/play/index.html` is the whole app. No build step, no install, no dependencies.
 
 ```
-node tests/self-tests.js     # 77 checks, no browser needed
+node tests/self-tests.js     # 91 checks, no browser needed
 python3 scripts/build.py     # the single-file build -> dist/opd-register.html
 python3 scripts/badges.py    # the README badges
 ```
@@ -56,16 +59,22 @@ nothing is written to your device.
 | View | What it does |
 |---|---|
 | **Dashboard** | Five KPIs (total, male, female, new, follow-up) with share-of-total; department bars; sex donut; a bar per day of the month; the last days with data (click to open); **follow-ups due in the next 14 days**, with the mobile number; a short "reading" panel — busiest day, new-vs-follow-up, working days with no entry, female share, gyn share. |
-| **Register** | The month calendar with day statuses and per-day counts; then one section per day: status dropdown, free-text note, patient count, add-row and clear-day. On a desktop a sticky, column-aligned grid; on a phone a card per patient and a full-screen editor. |
+| **Register** | The month calendar with day statuses and per-day counts; then one section per day: status dropdown, free-text note, patient count, add-row, print-day and clear-day. **Month or week scope**, a **row filter** across the visible days, and a **range of days** marked in one go. On a desktop a sticky, column-aligned grid; on a phone a card per patient and a full-screen editor. |
 | **Statistics** | Day-wise, month-wise or any date range, with 17 selectable columns (summary, departments, sex-within-department, activity). Print, Excel (.xls), CSV — and a **one-page digest** per month for the file, with a signature line. |
 | **Patients** | Ranked substring search over every month — name, OPD no., age, department, diagnosis, treatment, address — optionally across all locations. A hit opens that patient in the editor. |
 | **About & help** | Storage used, patient and month counts, locations, backup and restore, keyboard reference, the counting rules, privacy and licence. |
+
+Open a patient and the editor leads with **their previous visits** — date, department,
+diagnosis, prescription, and one button to copy that prescription into today's row. Clicking
+a row number opens it; the OPD field offers the **next number in your series** (offered, never
+applied) and the department field offers the departments this location actually uses.
 
 Each patient row also carries a **mobile number** and a **follow-up date** — neither of them
 makes a row a patient, so a stray date can never inflate a total. Rows duplicate with
 **Ctrl+D** for the next member of the same family, `01/01/1990` typed into Age becomes 35
 years, the department field offers the departments this location actually uses, a **range of
-days** can be marked holiday in one go, and **one day** can be printed on its own.
+days** can be marked holiday in one go (and undone), **one day** can be printed on its own,
+and ages read the way they are said: `8 mo`, not `0`.
 
 Smaller things that earn their place: automatic OPD autofill for returning patients, recent
 patient chips, undo on delete (row, patient, whole day) and on import, dark mode, a save
@@ -112,7 +121,7 @@ dist/opd-register.html   the single-file build (generated)
 scripts/build.py         inlines css + js into the single file
 scripts/badges.py        draws docs/assets/badge-*.svg
 scripts/icons.py         renders the PWA icon set from icon.svg
-tests/self-tests.js      77 checks over the real source, no browser
+tests/self-tests.js      91 checks over the real source, no browser
 ```
 
 The app is six classic scripts in one namespace, not ES modules — so it also runs from

@@ -1,5 +1,31 @@
 # Changelog
 
+## 3.2.0 — 2026-11-11
+
+The second tier of the roadmap: the register answers the question asked in the room.
+
+### Added
+- **Patient history** in the editor — every earlier visit under the same OPD number, newest
+  first, with department, diagnosis and prescription, and a button to copy that prescription
+  into today's row. Clicking a row's number opens the editor on any screen.
+- **Next number in the series** — suggested from the highest number already used in this
+  location, offered as a one-tap chip, never applied behind your back. Leading zeros kept.
+- **Row filter** — narrow the visible rows of every day by name, OPD no., diagnosis,
+  treatment, address or phone; days with a match open themselves.
+- **Week scope** — the register shows the seven days of the week you are in, with ‹ › steps,
+  instead of the whole month.
+- **Undo for a bulk day range** — the same toast as a single day.
+- **Ages as they are said** — `8 mo`, `18 mo`, `34 y` wherever an age is displayed.
+
+### Changed
+- The editor's history sits above the fields, because "what did I give last time" is the
+  first question, not the last.
+- Column widths trimmed so thirteen columns fit a 1440-wide screen without scrolling.
+- Demo month now includes returning patients, so the history panel has something to show.
+
+### Tests
+- 91 node checks (was 77) and 79 browser checks (was 66).
+
 ## 3.1.0 — 2026-11-11
 
 The first tier of the roadmap, all of it small enough to stay one file.
