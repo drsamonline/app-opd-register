@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="107" height="20" role="img" aria-label="runtime deps: 0">
+  <title>runtime deps: 0</title>
+  <linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#fff" stop-opacity=".12"/><stop offset="1" stop-opacity=".08"/></linearGradient>
+  <rect width="107" height="20" rx="3" fill="#334155"/>
+  <rect x="89" width="18" height="20" rx="3" fill="#0f8a5f"/>
+  <rect x="89" width="6" height="20" fill="#0f8a5f"/>
+  <rect width="107" height="20" rx="3" fill="url(#s)"/>
+  <g fill="#fff" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11" font-weight="600">
+    <text x="44.5" y="14" text-anchor="middle">runtime deps</text>
+    <text x="98.0" y="14" text-anchor="middle">0</text>
+  </g>
+</svg>

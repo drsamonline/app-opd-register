@@ -1,0 +1,8 @@
+{
+  "_note": "Pages are served from docs/. The app lives at docs/play/ and the landing page at docs/index.html; both are deployed by the build pipeline, not by hand.",
+  "manual": false,
+  "landing": "docs/index.html",
+  "app": "docs/play/index.html",
+  "deleted": [],
+  "updated": "2026-11-11"
+}

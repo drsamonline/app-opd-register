@@ -1,0 +1,23 @@
+{
+  "name": "OPD Register — daily entry, offline",
+  "short_name": "OPD Register",
+  "description": "A daily OPD register for multi-location clinics: month register, dashboard, day-wise statistics, print and Excel — offline, no account.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f4f6f9",
+  "theme_color": "#1f5fd0",
+  "categories": ["medical", "productivity", "health"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "shortcuts": [
+    { "name": "Today's register", "url": "./#register" },
+    { "name": "Statistics", "url": "./#stats" },
+    { "name": "Find a patient", "url": "./#search" }
+  ]
+}

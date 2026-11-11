@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#1f5fd0"/>
+<meta name="description" content="Daily OPD register for multi-location clinics — offline, instant, no account. Dashboard, month register, day-wise statistics, print and Excel export."/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="OPD Register"/>
+<title>OPD Register</title>
+<link rel="manifest" href="manifest.webmanifest"/>
+<link rel="icon" href="icon.svg" type="image/svg+xml"/>
+<link rel="apple-touch-icon" href="icons/icon-192.png"/>
+<link rel="stylesheet" href="assets/app.css"/>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-dash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="11" width="7" height="10" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/></symbol>
+  <symbol id="i-reg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1Z"/><rect x="4" y="5" width="16" height="16" rx="2.5"/><path d="M8 11h8M8 15h5"/></symbol>
+  <symbol id="i-stats" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m10 6 6 6-6 6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 0 4.5 4.5M12 3 7.5 7.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></symbol>
+  <symbol id="i-print" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 15h10v6H7z"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L20 8l-4-4L4 16v4Z"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></symbol>
+</defs></svg>
+
+<div class="app">
+
+  <!-- ============ RAIL (desktop) ============ -->
+  <aside class="rail">
+    <div class="mark">
+      <div class="glyph">OPD</div>
+      <div class="who">
+        <b>OPD Register</b>
+        <span>Dr. Sohil Momin</span>
+      </div>
+    </div>
+    <nav class="nav" id="railNav" aria-label="Sections">
+      <button data-view="dash" aria-current="page"><svg width="18" height="18"><use href="#i-dash"/></svg><span>Dashboard</span></button>
+      <button data-view="register"><svg width="18" height="18"><use href="#i-reg"/></svg><span>Register</span></button>
+      <button data-view="stats"><svg width="18" height="18"><use href="#i-stats"/></svg><span>Statistics</span></button>
+      <button data-view="search"><svg width="18" height="18"><use href="#i-search"/></svg><span>Patients</span></button>
+      <button data-view="info"><svg width="18" height="18"><use href="#i-info"/></svg><span>About &amp; Help</span></button>
+    </nav>
+    <div class="spacer"></div>
+    <div class="railfoot">
+      <div id="railStore" class="num">—</div>
+      <a href="https://github.com/drsamonline/app-opd-register" target="_blank" rel="noopener">Source &amp; updates</a>
+    </div>
+  </aside>
+
+  <!-- ============ TOPBAR ============ -->
+  <header class="topbar">
+    <div class="brandmini"><div class="glyph">OPD</div></div>
+
+    <div class="monthstep">
+      <button class="mbtn" id="btnPrevMonth" aria-label="Previous month" title="Previous month (Alt+←)"><svg width="17" height="17"><use href="#i-left"/></svg></button>
+      <button class="monthlabel num" id="btnMonthLabel" title="Pick a month">—</button>
+      <button class="mbtn" id="btnNextMonth" aria-label="Next month" title="Next month (Alt+→)"><svg width="17" height="17"><use href="#i-right"/></svg></button>
+      <button class="btn ghost sm" id="btnToday" title="Jump to today (T)">Today</button>
+      <input type="month" id="monthPick" class="sr-only" tabindex="-1" aria-hidden="true"/>
+    </div>
+
+    <label class="locwrap" title="Switch OPD location" style="display:flex;align-items:center;gap:6px;min-width:0">
+      <select id="locSelect" class="selx" aria-label="Location" style="height:30px;max-width:190px;font-size:12.5px"></select>
+    </label>
+
+    <div class="grow"></div>
+
+    <label class="searchbox" for="qTop" title="Search patients (/)">
+      <svg width="15" height="15"><use href="#i-search"/></svg>
+      <input id="qTop" type="search" placeholder="Search name, OPD no., diagnosis…" autocomplete="off"/>
+      <kbd>/</kbd>
+    </label>
+
+    <span class="savechip" id="saveChip" title="Everything is stored on this device"><i></i><span id="saveTxt">Saved</span></span>
+
+    <button class="btn icon ghost" id="btnTheme" aria-label="Toggle dark mode" title="Dark mode (D)"><svg width="17" height="17"><use href="#i-moon"/></svg></button>
+    <button class="btn icon ghost" id="btnMenu" aria-label="More actions" title="More"><svg width="17" height="17"><use href="#i-dots"/></svg></button>
+  </header>
+
+  <!-- ============ MAIN ============ -->
+  <main id="main">
+
+    <!-- ---------- DASHBOARD ---------- -->
+    <section class="view" id="view-dash">
+      <div class="pagehead">
+        <div>
+          <h1 id="dashTitle">Dashboard</h1>
+          <div class="sub" id="dashSub">This month at a glance</div>
+        </div>
+        <div class="grow"></div>
+        <button class="btn sm" id="btnDashRegister">Open register</button>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi t"><div class="k">Total patients</div><div class="v" id="kTotal">0</div><div class="s" id="kTotalSub">—</div></div>
+        <div class="kpi m"><div class="k">Male</div><div class="v" id="kMale">0</div><div class="s" id="kMaleSub">—</div></div>
+        <div class="kpi f"><div class="k">Female</div><div class="v" id="kFemale">0</div><div class="s" id="kFemaleSub">—</div></div>
+        <div class="kpi n"><div class="k">New</div><div class="v" id="kNew">0</div><div class="s" id="kNewSub">—</div></div>
+        <div class="kpi o"><div class="k">Follow-up</div><div class="v" id="kOld">0</div><div class="s" id="kOldSub">—</div></div>
+      </div>
+
+      <div class="dgrid">
+        <section class="panel">
+          <div class="ph"><h2>Departments</h2><span class="hint" id="dDeptHint">share of this month</span></div>
+          <div class="pb"><div class="bars" id="dDept"></div></div>
+        </section>
+
+        <section class="panel">
+          <div class="ph"><h2>Sex split</h2></div>
+          <div class="pb"><div class="split" id="dSex"></div></div>
+        </section>
+
+        <section class="panel wide">
+          <div class="ph"><h2>Daily trend</h2><span class="hint" id="dTrendHint">patients per day</span></div>
+          <div class="pb"><div id="dTrend"></div></div>
+        </section>
+
+        <section class="panel">
+          <div class="ph"><h2>Last days with data</h2><span class="hint">click to open</span></div>
+          <div class="pb flush"><div id="dRecent"></div></div>
+        </section>
+
+        <section class="panel">
+          <div class="ph"><h2>Reading</h2><span class="hint">auto</span></div>
+          <div class="pb"><div class="bars" id="dInsights"></div></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ---------- REGISTER ---------- -->
+    <section class="view" id="view-register" hidden>
+      <div class="pagehead">
+        <div>
+          <h1 id="regTitle">Register</h1>
+          <div class="sub" id="regSub">Every day of the month, ready to type into</div>
+        </div>
+        <div class="grow"></div>
+        <button class="btn sm" id="btnPrintReg"><svg width="14" height="14"><use href="#i-print"/></svg>Print</button>
+      </div>
+
+      <section class="panel">
+        <div class="pb">
+          <div class="calhead">
+            <div class="calleg">
+              <span><i class="i-w"></i>Working</span>
+              <span><i class="i-h"></i>Holiday</span>
+              <span><i class="i-n"></i>Non-working</span>
+              <span><i class="i-a"></i>No activity</span>
+            </div>
+            <div class="grow"></div>
+            <span class="hint" id="calSum" style="font-size:11.5px;color:var(--muted-2)"></span>
+          </div>
+          <div class="dowrow"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+          <div class="cal" id="calGrid"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="regbar">
+          <div class="filter" id="regFilter" role="group" aria-label="Filter days">
+            <button data-filter="all" aria-pressed="true">All days</button>
+            <button data-filter="data" aria-pressed="false">With patients</button>
+            <button data-filter="today" aria-pressed="false">Today</button>
+          </div>
+          <div class="grow"></div>
+          <div class="chips" id="chips" aria-label="Recent patients"></div>
+        </div>
+        <div id="days"></div>
+      </section>
+    </section>
+
+    <!-- ---------- STATISTICS ---------- -->
+    <section class="view" id="view-stats" hidden>
+      <div class="pagehead">
+        <div>
+          <h1>Statistics</h1>
+          <div class="sub">Day-wise, month-wise or any date range — pick your columns</div>
+        </div>
+        <div class="grow"></div>
+        <button class="btn sm" id="btnStatPrint"><svg width="14" height="14"><use href="#i-print"/></svg>Print</button>
+        <button class="btn sm" id="btnStatExcel"><svg width="14" height="14"><use href="#i-down"/></svg>Excel</button>
+        <button class="btn sm" id="btnStatCsv"><svg width="14" height="14"><use href="#i-down"/></svg>CSV</button>
+      </div>
+
+      <section class="panel">
+        <div class="pb">
+          <div class="controls">
+            <div class="segmented" id="statMode" role="group" aria-label="Report mode">
+              <button data-mode="day" aria-pressed="true">Day-wise</button>
+              <button data-mode="month" aria-pressed="false">Month-wise</button>
+              <button data-mode="range" aria-pressed="false">Date range</button>
+            </div>
+            <div class="field" id="fldMonth"><label for="statMonth">Month</label><input type="month" id="statMonth"/></div>
+            <div class="field" id="fldYear" hidden><label for="statYear">Year</label><input type="number" id="statYear" min="2000" max="2100"/></div>
+            <div class="field" id="fldFrom" hidden><label for="statFrom">From</label><input type="date" id="statFrom"/></div>
+            <div class="field" id="fldTo" hidden><label for="statTo">To</label><input type="date" id="statTo"/></div>
+            <button class="btn primary" id="btnRunStats">Run</button>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 6px">
+            <h3 style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted-2)">Columns</h3>
+            <div class="grow" style="flex:1"></div>
+            <button class="btn sm ghost" id="btnColAll">All</button>
+            <button class="btn sm ghost" id="btnColNone">None</button>
+          </div>
+          <div class="cols" id="colsBox"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="statout" id="statOutput">
+          <div class="empty"><b>Nothing yet</b>Pick a mode and press Run.</div>
+        </div>
+      </section>
+    </section>
+
+    <!-- ---------- SEARCH ---------- -->
+    <section class="view" id="view-search" hidden>
+      <div class="pagehead">
+        <div>
+          <h1>Patients</h1>
+          <div class="sub" id="searchSub">Search every location and month, or browse the last 50</div>
+        </div>
+      </div>
+      <section class="panel">
+        <div class="pb">
+          <div class="searchbig">
+            <label class="searchbox" for="qBig">
+              <svg width="16" height="16"><use href="#i-search"/></svg>
+              <input id="qBig" type="search" placeholder="Name, OPD no., diagnosis, department, address…" autocomplete="off" autofocus/>
+            </label>
+            <label class="chip" style="gap:6px">
+              <input type="checkbox" id="searchAllLoc" style="accent-color:var(--accent)"/>All locations
+            </label>
+          </div>
+        </div>
+        <div class="hits" id="hits"></div>
+      </section>
+    </section>
+
+    <!-- ---------- INFO ---------- -->
+    <section class="view" id="view-info" hidden>
+      <div class="pagehead">
+        <div>
+          <h1>About, help &amp; data</h1>
+          <div class="sub">Version 3.0 · single file, no server, no account</div>
+        </div>
+      </div>
+
+      <div class="dgrid">
+        <section class="panel">
+          <div class="ph"><h2>This device</h2></div>
+          <div class="pb">
+            <div class="doc" style="gap:10px">
+              <div class="author">
+                <div class="av">SM</div>
+                <div>
+                  <b>Dr. Sohil Momin</b>
+                  <span>Author &amp; developer · physician</span>
+                </div>
+              </div>
+              <dl class="kv" id="storeInfo"></dl>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn" id="btnExportJson"><svg width="14" height="14"><use href="#i-down"/></svg>Export backup</button>
+                <label class="btn"><svg width="14" height="14"><use href="#i-up"/></svg>Import backup<input type="file" id="fileImport" accept=".json,application/json" hidden/></label>
+                <button class="btn" id="btnExportCsvAll">Export CSV</button>
+              </div>
+              <p style="font-size:12px;color:var(--muted)">A backup file holds every location and every month. Export one weekly and keep it in cloud storage.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="ph"><h2>Locations</h2></div>
+          <div class="pb">
+            <div class="doc" style="gap:10px">
+              <div id="locList" style="display:flex;flex-direction:column;gap:6px"></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn" id="btnAddLoc"><svg width="14" height="14"><use href="#i-plus"/></svg>New location</button>
+                <button class="btn" id="btnRenameLoc"><svg width="14" height="14"><use href="#i-edit"/></svg>Rename</button>
+                <button class="btn danger" id="btnDelLoc"><svg width="14" height="14"><use href="#i-trash"/></svg>Delete</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="ph"><h2>Keyboard</h2></div>
+          <div class="pb">
+            <div class="doc">
+              <ul>
+                <li><span class="kbd">/</span> search · <span class="kbd">N</span> new patient · <span class="kbd">T</span> today</li>
+                <li><span class="kbd">Alt</span>+<span class="kbd">←</span>/<span class="kbd">→</span> previous / next month</li>
+                <li><span class="kbd">Enter</span> in a row saves and moves to the next row; on the last row it adds one</li>
+                <li><span class="kbd">Ctrl</span>+<span class="kbd">Enter</span> adds a row · <span class="kbd">Esc</span> closes a panel</li>
+                <li><span class="kbd">Ctrl</span>+<span class="kbd">P</span> prints the register · <span class="kbd">D</span> dark mode</li>
+                <li><span class="kbd">1</span>–<span class="kbd">5</span> jump between sections</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="ph"><h2>Privacy &amp; licence</h2></div>
+          <div class="pb">
+            <div class="doc">
+              <ul>
+                <li><b>Nothing leaves this device.</b> No account, no analytics, no network request.</li>
+                <li>Data lives in this browser's <code>localStorage</code>. Clearing site data erases it — keep a backup.</li>
+                <li><b>PolyForm Noncommercial 1.0.0.</b> Free to use, study and share for noncommercial purposes.</li>
+                <li>Built by <b>Dr. Sohil Momin</b>. Source, releases and the full manual are on GitHub.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel wide">
+          <div class="ph"><h2>How the counts work</h2></div>
+          <div class="pb">
+            <div class="doc">
+              <ul>
+                <li><b>A row counts as a patient</b> when any of OPD no., department, name, age, address, diagnosis or treatment is filled.</li>
+                <li><b>Gynecology is female-only</b> — any department containing <i>gyn</i>, <i>obs</i> or <i>obstet</i> counts as female whatever the sex field says.</li>
+                <li><b>Under 15 counts as Pediatrics</b> — a child entered under Medicine is also counted in the Pediatrics breakdown. Age accepts <code>5</code>, <code>5y</code>, <code>6 mo</code>, <code>3 days</code>, <code>1.5</code>.</li>
+                <li><b>Day status</b> (working, holiday, non-working, no activity) never changes a patient count — it labels the day for reporting.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ BOTTOM TABS (mobile) ============ -->
+  <nav class="tabbar" id="tabbar" aria-label="Sections">
+    <button data-view="dash" aria-current="page"><svg><use href="#i-dash"/></svg>Home</button>
+    <button data-view="register"><svg><use href="#i-reg"/></svg>Register</button>
+    <button data-view="stats"><svg><use href="#i-stats"/></svg>Stats</button>
+    <button data-view="search"><svg><use href="#i-search"/></svg>Patients</button>
+    <button data-view="info"><svg><use href="#i-info"/></svg>More</button>
+  </nav>
+</div>
+
+<!-- ============ MENU ============ -->
+<div class="menu" id="menu" role="menu">
+  <button data-act="newpatient"><svg width="15" height="15"><use href="#i-plus"/></svg>New patient</button>
+  <button data-act="export"><svg width="15" height="15"><use href="#i-down"/></svg>Export backup (JSON)</button>
+  <button data-act="csv"><svg width="15" height="15"><use href="#i-down"/></svg>Export month (CSV)</button>
+  <button data-act="print"><svg width="15" height="15"><use href="#i-print"/></svg>Print register</button>
+  <hr/>
+  <button data-act="today"><svg width="15" height="15"><use href="#i-reg"/></svg>Go to today</button>
+  <button data-act="install" id="miInstall" style="display:none"><svg width="15" height="15"><use href="#i-check"/></svg>Install app</button>
+  <button data-act="demo"><svg width="15" height="15"><use href="#i-copy"/></svg>Load demo data</button>
+  <button data-act="about"><svg width="15" height="15"><use href="#i-info"/></svg>About &amp; help</button>
+</div>
+
+<!-- ============ PATIENT SHEET ============ -->
+<div class="scrim" id="scrim"></div>
+<aside class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" aria-hidden="true">
+  <div class="sh">
+    <h2 id="sheetTitle">Patient</h2>
+    <span class="cnt" id="sheetPos"></span>
+    <button class="btn icon ghost" id="btnSheetClose" aria-label="Close"><svg width="17" height="17"><use href="#i-close"/></svg></button>
+  </div>
+  <div class="sb" id="sheetBody">
+    <div class="formgrid">
+      <div class="field"><label for="f-opd">OPD no.</label><input id="f-opd" data-f="opd" inputmode="text" autocomplete="off" list="opdList" placeholder="e.g. 24817"/></div>
+      <div class="field"><label for="f-caseType">Case</label><select id="f-caseType" data-f="caseType"><option>New</option><option>Old</option></select></div>
+      <div class="field full"><label for="f-name">Name</label><input id="f-name" data-f="name" autocomplete="off" placeholder="Patient name"/></div>
+      <div class="field"><label for="f-age">Age</label><input id="f-age" data-f="age" inputmode="text" autocomplete="off" placeholder="34 / 6 mo"/></div>
+      <div class="field"><label for="f-sex">Sex</label><select id="f-sex" data-f="sex"><option value="">—</option><option value="M">Male</option><option value="F">Female</option><option value="O">Other</option></select></div>
+      <div class="field full"><label for="f-department">Department</label><input id="f-department" data-f="department" autocomplete="off" list="deptList" placeholder="Medicine…"/></div>
+      <div class="field full"><label for="f-address">Address</label><input id="f-address" data-f="address" autocomplete="off" placeholder="Village / area"/></div>
+      <div class="field full"><label for="f-diagnosis">Diagnosis</label><input id="f-diagnosis" data-f="diagnosis" autocomplete="off" placeholder="Provisional diagnosis"/></div>
+      <div class="field full"><label for="f-treatment">Treatment</label><textarea id="f-treatment" data-f="treatment" placeholder="Advice / prescription summary"></textarea></div>
+    </div>
+    <p id="sheetHint" style="font-size:11.5px;color:var(--muted-2)">Saves as you type.</p>
+  </div>
+  <div class="sf">
+    <button class="btn danger" id="btnSheetDel"><svg width="15" height="15"><use href="#i-trash"/></svg></button>
+    <button class="btn" id="btnSheetPrev">Previous</button>
+    <button class="btn primary" id="btnSheetSave">Done</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast"><span id="toastMsg"></span><button id="toastAct" hidden></button></div>
+
+<datalist id="opdList"></datalist>
+<datalist id="deptList">
+  <option value="Medicine"></option>
+  <option value="Gynec &amp; Obs"></option>
+  <option value="Surgery"></option>
+  <option value="Pediatrics"></option>
+  <option value="Orthopedics"></option>
+  <option value="ENT"></option>
+  <option value="Ophthalmology"></option>
+  <option value="Dermatology"></option>
+  <option value="Psychiatry"></option>
+  <option value="Dentistry"></option>
+</datalist>
+
+<script src="assets/store.js"></script>
+<script src="assets/register.js"></script>
+<script src="assets/dashboard.js"></script>
+<script src="assets/stats.js"></script>
+<script src="assets/search.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

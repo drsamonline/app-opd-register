@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="OPD Register">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f74e8"/>
+      <stop offset="1" stop-color="#17479c"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#g)"/>
+  <rect x="112" y="96" width="288" height="320" rx="26" fill="#ffffff" opacity="0.96"/>
+  <rect x="112" y="96" width="288" height="64" rx="26" fill="#0d1726" opacity="0.12"/>
+  <g fill="#1f5fd0">
+    <rect x="152" y="196" width="86" height="12" rx="6"/>
+    <rect x="152" y="240" width="150" height="12" rx="6" opacity="0.75"/>
+    <rect x="152" y="284" width="120" height="12" rx="6" opacity="0.75"/>
+    <rect x="152" y="328" width="170" height="12" rx="6" opacity="0.55"/>
+  </g>
+  <circle cx="360" cy="352" r="56" fill="#0f8a5f"/>
+  <path d="M334 352h52M360 326v52" stroke="#fff" stroke-width="16" stroke-linecap="round"/>
+</svg>

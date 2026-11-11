@@ -1,0 +1,38 @@
+# The tests that need no browser, plus the single-file build. Fast, and it runs on every push.
+
+name: Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Self-tests (61 checks, no browser)
+        run: node tests/self-tests.js
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: The single-file build must still build
+        run: python3 scripts/build.py
+      - name: The build must contain no external reference
+        run: |
+          set -e
+          if grep -Eq '(src|href)="https?://' dist/opd-register.html; then
+            echo "::error::the single-file build references an external URL"
+            grep -Eo '(src|href)="https?://[^"]+"' dist/opd-register.html | head -5
+            exit 1
+          fi
+          echo "single file: no external references"
