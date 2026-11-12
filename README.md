@@ -48,7 +48,8 @@ Screens at both widths: [`docs/assets/app-desktop.png`](docs/assets/app-desktop.
 [`docs/assets/app-conflict.png`](docs/assets/app-conflict.png) (what differs, and which side wins),
 [`docs/assets/app-csv.png`](docs/assets/app-csv.png) (the spreadsheet column mapper),
 [`docs/assets/app-conflicts.png`](docs/assets/app-conflicts.png) (resolving differences one field at a time),
-[`docs/assets/app-print.png`](docs/assets/app-print.png) (the register as it prints),
+[`docs/assets/app-print.png`](docs/assets/app-print.png) (the register as it prints, landscape),
+[`docs/assets/app-printpreview.png`](docs/assets/app-printpreview.png) (the print preview),
 [`docs/assets/app-settings.png`](docs/assets/app-settings.png) (display, lock, storage),
 [`docs/assets/app-digest.png`](docs/assets/app-digest.png) (the printable digest) and
 [`docs/assets/app-stats.png`](docs/assets/app-stats.png). Badges are drawn locally by

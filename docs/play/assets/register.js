@@ -141,8 +141,20 @@
   /* Paper gets text, not input boxes: a box clips its own value at 8pt, and an empty field
      would print its placeholder. Columns drop mobile and address, which nobody reads back
      off a printout. */
+  /* which fields go on paper: compact drops mobile + address, clinical keeps only the
+     clinical ones, all prints every column the screen has */
+  var PRINT_DROP = {
+    compact: ['phone', 'address'],
+    clinical: ['phone', 'address', 'caseType', 'followUp'],
+    all: []
+  };
+  function printCols() {
+    var drop = PRINT_DROP[S.printCols] || PRINT_DROP.compact;
+    return order().filter(function (f) { return drop.indexOf(f) === -1; });
+  }
+
   function printTableHTML(k, list) {
-    var cols = order().filter(function (f) { return f !== 'phone' && f !== 'address'; });
+    var cols = printCols();
     var head = '<thead><tr><th>#</th>' + cols.map(function (f) {
       return '<th data-c="' + f + '">' + COLHEAD[f] + '</th>';
     }).join('') + '</tr></thead>';
@@ -1194,6 +1206,8 @@
   NS.weekDays = weekDays;
   NS.rowsMatching = rowsMatching;
   NS.fieldOrder = function () { return order().slice(); };
+  NS.printCols = printCols;
+  NS.printTableHTML = printTableHTML;
   NS.fieldLabel = function (f) { return COLHEAD[f] || f; };
   NS.renderCal = renderCal;
   NS.printDay = printDay;

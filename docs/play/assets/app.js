@@ -233,6 +233,116 @@
     switchView('dash');
   }
 
+  /* ---------------- print, with a preview and the right page ----------------
+     The register is a wide table, so it prints landscape; everything else is portrait. The
+     page rule is injected for the duration of the print, because @page cannot be scoped to
+     an element. */
+  var pvKind = null;
+
+  function pageStyle(landscape) {
+    var el = $('#printPage');
+    if (!el) { el = document.createElement('style'); el.id = 'printPage'; document.head.appendChild(el); }
+    el.textContent = landscape
+      ? '@page{size:A4 landscape;margin:8mm}'
+      : '@page{size:A4 portrait;margin:12mm}';
+  }
+  function clearPageStyle() { var el = $('#printPage'); if (el) el.remove(); }
+
+  function doPrint(kind) {
+    var landscape = kind === 'register' || kind === 'week';
+    pageStyle(landscape);
+    var cls = kind === 'week' ? 'printing-week'
+      : kind === 'stats' ? 'printing-stats'
+      : kind === 'digest' ? 'printing-stats'
+      : 'printing-register';
+    NS.saveNow();
+    document.body.classList.add(cls);
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.body.classList.remove(cls); clearPageStyle(); }, 500);
+    }, 40);
+  }
+
+  function closePreview() {
+    var d = $('#printDialog');
+    if (d) { d.classList.remove('on'); d.setAttribute('aria-hidden', 'true'); }
+    var sc = $('#dlgScrim'); if (sc) sc.classList.remove('on');
+    document.body.style.overflow = '';
+    pvKind = null;
+  }
+
+  function openPrintPreview(kind) {
+    pvKind = kind;
+    var body = $('#pvBody');
+    var landscape = kind === 'register' || kind === 'week';
+    var facts = '', preview = '';
+
+    if (kind === 'register' || kind === 'week') {
+      var days = kind === 'week' ? NS.weekDays(NS.S.curD || NS.tKey()) : [NS.S.curD || NS.tKey()];
+      var day = days.filter(function (k) { return NS.cnt(k) > 0; })[0] || days[0];
+      var list = ((NS.ent()[day] || {}).rows || []).map(function (r, i) { return { r: r, i: i }; }).filter(function (x) { return NS.hasD(x.r); });
+      var cols = NS.printCols();
+      facts = '<div class="pvfacts"><span><b>' + NS.esc(kind === 'week' ? 'The week' : 'The month') + '</b> ' +
+        NS.esc(kind === 'week' ? '' : NS.fmtMonth(NS.S.curM)) + '</span>' +
+        '<span><b>' + (landscape ? 'A4 landscape' : 'A4 portrait') + '</b></span>' +
+        '<span><b>' + cols.length + '</b> columns</span>' +
+        '<span><b>' + NS.monthCount(NS.S.curM) + '</b> patients this month</span></div>';
+      preview = '<div class="pv"><div class="pvpage">' +
+        '<div class="pvh">' + NS.esc(NS.db.current) + ' — ' + NS.esc(NS.fmtMonth(NS.S.curM)) + '</div>' +
+        '<div class="pvs">First day with patients shown · the whole month prints</div>' +
+        NS.printTableHTML(day, list.length ? list : [{ r: {}, i: 0 }]) +
+        '</div></div>';
+    } else {
+      var src = $('#statOutput');
+      facts = '<div class="pvfacts"><span><b>A4 portrait</b></span><span>the table currently on screen</span></div>';
+      preview = '<div class="pv"><div class="pvpage">' + (src ? src.innerHTML : '') + '</div></div>';
+    }
+
+    body.innerHTML = facts + preview +
+      '<p class="pvnote">' + (landscape
+        ? 'The register prints as a text table — no input boxes, nothing clipped at the edge. Mobile and address are dropped in Compact.'
+        : 'Change the columns above if the sheet should look different.') + '</p>';
+
+    var d = $('#printDialog');
+    d.classList.add('on'); d.setAttribute('aria-hidden', 'false');
+    var sc = $('#dlgScrim'); if (sc) sc.classList.add('on');
+    document.body.style.overflow = 'hidden';
+    $('#pvGo').focus();
+  }
+
+  function bindPrintPreview() {
+    var reg = $('#btnPrintReg');
+    if (reg) reg.addEventListener('click', function (ev) {
+      ev.preventDefault(); ev.stopImmediatePropagation();
+      openPrintPreview(NS.S.scope === 'week' ? 'week' : 'register');
+    }, true);
+
+    var sp = $('#btnStatPrint');
+    if (sp) sp.addEventListener('click', function (ev) {
+      ev.preventDefault(); ev.stopImmediatePropagation();
+      openPrintPreview('stats');
+    }, true);
+
+    var dg = $('#btnDigest');
+    if (dg) dg.addEventListener('click', function (ev) {
+      ev.preventDefault(); ev.stopImmediatePropagation();
+      NS.runStats && NS.statsState && (NS.statsState.ran = true);
+      var out = $('#statOutput');
+      if (typeof NS.digest === 'function') NS.digest(true);   /* render only */
+      openPrintPreview('digest');
+    }, true);
+
+    if ($('#pvGo')) $('#pvGo').addEventListener('click', function () {
+      var k = pvKind;
+      closePreview();
+      doPrint(k);
+    });
+    ['#pvCancel', '#pvClose'].forEach(function (sel) {
+      var el = $(sel);
+      if (el) el.addEventListener('click', closePreview);
+    });
+  }
+
   /* ---------------- bulk day range ---------------- */
   function bindRange() {
     var btn = $('#btnRange'), panel = $('#rangePanel');
@@ -633,6 +743,7 @@
     bindLockPanel();
     bindNotice();
     bindBackupNotice();
+    bindPrintPreview();
     bindIdle();
     bindKeys();
 
@@ -702,6 +813,16 @@
         NS.toast('Column order saved for ' + NS.db.current + '.');
       });
     }
+    var pc = $('#setPrintCols');
+    if (pc) {
+      pc.value = NS.S.printCols || 'compact';
+      pc.addEventListener('change', function () {
+        NS.S.printCols = pc.value;
+        NS.settingsSave();
+        NS.toast('Printed columns saved.');
+      });
+    }
+
     var mt = $('#setMonthTarget');
     if (mt) {
       mt.value = NS.S.monthTarget || '';

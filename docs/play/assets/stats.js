@@ -334,7 +334,7 @@
   }
 
   /* One page a month for the file: totals, departments, every day, every week, signature. */
-  function digest() {
+  function digest(renderOnly) {
     var mk = NS.S.curM || NS.mKey(new Date());
     var month = monthStats(mk);
     var n = NS.dim(mk), days = [], worked = 0;
@@ -403,8 +403,11 @@
 
     var out = $('#statOutput');
     if (out) out.innerHTML = h;
+    state.ran = true;
+    if (renderOnly) return h;          /* the print preview renders it, then prints */
     document.body.classList.add('printing-stats');
     setTimeout(function () { window.print(); setTimeout(function () { document.body.classList.remove('printing-stats'); }, 400); }, 60);
+    return h;
   }
 
   function print() {
@@ -443,6 +446,7 @@
   NS.bindStats = bind;
   NS.runStats = run;
   NS.yearView = yearView;
+  NS.digest = digest;
   NS.exportMonthCsv = exportMonthCsv;
   NS.statsState = state;
 })(window.OPD = window.OPD || {});

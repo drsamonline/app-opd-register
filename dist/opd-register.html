@@ -817,6 +817,17 @@ tr.dragging td{opacity:.45}
 .dlgscrim.on{display:block}
 @media (max-width:560px){.dialog{top:auto;bottom:0;left:0;transform:none;width:100%;max-height:88dvh;border-radius:16px 16px 0 0}.dialog.on{display:flex}}
 
+.pv{background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;height:300px;position:relative}
+.pv .pvpage{transform:scale(.52);transform-origin:top left;width:192%;background:#fff;padding:10px}
+.pv .pvpage table{width:100%;border-collapse:collapse;font-size:8pt}
+.pv .pvpage th{background:#eef1f5;font-size:6.5pt;text-align:left;padding:3px;text-transform:uppercase;letter-spacing:0;color:#475569}
+.pv .pvpage td{padding:2.5px 3px;border-bottom:1px solid #ccc;font-size:8pt;color:#111;vertical-align:top}
+.pv .pvpage .pvh{font-size:10pt;font-weight:700;margin-bottom:6px;color:#0b1220}
+.pv .pvpage .pvs{font-size:7pt;color:#64748b;margin-bottom:6px}
+.pvfacts{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:10px}
+.pvfacts b{color:var(--ink);font-weight:700}
+.pvnote{font-size:11.5px;color:var(--muted-2);margin-top:8px}
+
 .cflist{display:flex;flex-direction:column;gap:10px}
 .cfitem{border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:var(--panel-2)}
 .cfitem .cfh{font-size:12.5px;font-weight:700;color:var(--ink);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
@@ -1300,6 +1311,14 @@ tr.dragging td{opacity:.45}
                 <input type="number" id="setTarget" min="0" max="200" step="1" placeholder="e.g. 30"/>
               </div>
               <div class="field">
+                <label for="setPrintCols">Columns on the printed register</label>
+                <select id="setPrintCols">
+                  <option value="compact">Compact — everything except mobile and address</option>
+                  <option value="clinical">Clinical only — no case, mobile, address, follow-up</option>
+                  <option value="all">Every column, mobile and address included</option>
+                </select>
+              </div>
+              <div class="field">
                 <label for="setMonthTarget">Monthly patient target (0 = off)</label>
                 <input type="number" id="setMonthTarget" min="0" max="20000" step="10" placeholder="e.g. 600"/>
               </div>
@@ -1473,6 +1492,12 @@ tr.dragging td{opacity:.45}
     <button class="btn" id="dlgReplace">Replace everything</button>
     <button class="btn primary" id="dlgMerge">Merge</button>
   </div>
+</div>
+
+<div class="dialog" id="printDialog" role="dialog" aria-modal="true" aria-labelledby="pvTitle" aria-hidden="true">
+  <div class="dh"><h2 id="pvTitle">Print preview</h2><button class="btn icon ghost" id="pvClose" aria-label="Close"><svg width="17" height="17"><use href="#i-close"/></svg></button></div>
+  <div class="db" id="pvBody"></div>
+  <div class="df"><button class="btn ghost" id="pvCancel">Cancel</button><button class="btn primary" id="pvGo">Print</button></div>
 </div>
 
 <div class="dialog" id="conflictDialog" role="dialog" aria-modal="true" aria-labelledby="cfTitle" aria-hidden="true">
@@ -1999,7 +2024,7 @@ tr.dragging td{opacity:.45}
   var DB = null;
   var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {},
             colOrder: 'default', colOrderByLoc: {}, lockIdle: 10, target: 0, monthTarget: 0, lastImport: null,
-            csvMaps: {}, lastBackup: 0, backupSnooze: 0,
+            csvMaps: {}, lastBackup: 0, backupSnooze: 0, printCols: 'compact',
             locked: false, lockedNow: false, lockChoice: '' };
   var events = {};
   var saveState = 'saved';
@@ -2052,6 +2077,7 @@ tr.dragging td{opacity:.45}
         if (st.csvMaps && typeof st.csvMaps === 'object') S.csvMaps = st.csvMaps;
         if (typeof st.lastBackup === 'number') S.lastBackup = st.lastBackup;
         if (typeof st.backupSnooze === 'number') S.backupSnooze = st.backupSnooze;
+        if (st.printCols === 'all' || st.printCols === 'compact' || st.printCols === 'clinical') S.printCols = st.printCols;
         if (typeof st.target === 'number') S.target = st.target;
         if (typeof st.monthTarget === 'number') S.monthTarget = st.monthTarget;
         if (st.lockChoice === 'on' || st.lockChoice === 'off') S.lockChoice = st.lockChoice;
@@ -2099,7 +2125,7 @@ tr.dragging td{opacity:.45}
         theme: S.theme, filter: S.filter, colOrder: S.colOrder, colOrderByLoc: S.colOrderByLoc,
         lockIdle: S.lockIdle, target: S.target, monthTarget: S.monthTarget,
         lockChoice: S.lockChoice, lastImport: S.lastImport, csvMaps: S.csvMaps,
-        lastBackup: S.lastBackup, backupSnooze: S.backupSnooze
+        lastBackup: S.lastBackup, backupSnooze: S.backupSnooze, printCols: S.printCols
       }));
     } catch (e) {}
   }
@@ -2946,8 +2972,20 @@ tr.dragging td{opacity:.45}
   /* Paper gets text, not input boxes: a box clips its own value at 8pt, and an empty field
      would print its placeholder. Columns drop mobile and address, which nobody reads back
      off a printout. */
+  /* which fields go on paper: compact drops mobile + address, clinical keeps only the
+     clinical ones, all prints every column the screen has */
+  var PRINT_DROP = {
+    compact: ['phone', 'address'],
+    clinical: ['phone', 'address', 'caseType', 'followUp'],
+    all: []
+  };
+  function printCols() {
+    var drop = PRINT_DROP[S.printCols] || PRINT_DROP.compact;
+    return order().filter(function (f) { return drop.indexOf(f) === -1; });
+  }
+
   function printTableHTML(k, list) {
-    var cols = order().filter(function (f) { return f !== 'phone' && f !== 'address'; });
+    var cols = printCols();
     var head = '<thead><tr><th>#</th>' + cols.map(function (f) {
       return '<th data-c="' + f + '">' + COLHEAD[f] + '</th>';
     }).join('') + '</tr></thead>';
@@ -3999,6 +4037,8 @@ tr.dragging td{opacity:.45}
   NS.weekDays = weekDays;
   NS.rowsMatching = rowsMatching;
   NS.fieldOrder = function () { return order().slice(); };
+  NS.printCols = printCols;
+  NS.printTableHTML = printTableHTML;
   NS.fieldLabel = function (f) { return COLHEAD[f] || f; };
   NS.renderCal = renderCal;
   NS.printDay = printDay;
@@ -4572,7 +4612,7 @@ tr.dragging td{opacity:.45}
   }
 
   /* One page a month for the file: totals, departments, every day, every week, signature. */
-  function digest() {
+  function digest(renderOnly) {
     var mk = NS.S.curM || NS.mKey(new Date());
     var month = monthStats(mk);
     var n = NS.dim(mk), days = [], worked = 0;
@@ -4641,8 +4681,11 @@ tr.dragging td{opacity:.45}
 
     var out = $('#statOutput');
     if (out) out.innerHTML = h;
+    state.ran = true;
+    if (renderOnly) return h;          /* the print preview renders it, then prints */
     document.body.classList.add('printing-stats');
     setTimeout(function () { window.print(); setTimeout(function () { document.body.classList.remove('printing-stats'); }, 400); }, 60);
+    return h;
   }
 
   function print() {
@@ -4681,6 +4724,7 @@ tr.dragging td{opacity:.45}
   NS.bindStats = bind;
   NS.runStats = run;
   NS.yearView = yearView;
+  NS.digest = digest;
   NS.exportMonthCsv = exportMonthCsv;
   NS.statsState = state;
 })(window.OPD = window.OPD || {});
@@ -5110,6 +5154,116 @@ tr.dragging td{opacity:.45}
     switchView('dash');
   }
 
+  /* ---------------- print, with a preview and the right page ----------------
+     The register is a wide table, so it prints landscape; everything else is portrait. The
+     page rule is injected for the duration of the print, because @page cannot be scoped to
+     an element. */
+  var pvKind = null;
+
+  function pageStyle(landscape) {
+    var el = $('#printPage');
+    if (!el) { el = document.createElement('style'); el.id = 'printPage'; document.head.appendChild(el); }
+    el.textContent = landscape
+      ? '@page{size:A4 landscape;margin:8mm}'
+      : '@page{size:A4 portrait;margin:12mm}';
+  }
+  function clearPageStyle() { var el = $('#printPage'); if (el) el.remove(); }
+
+  function doPrint(kind) {
+    var landscape = kind === 'register' || kind === 'week';
+    pageStyle(landscape);
+    var cls = kind === 'week' ? 'printing-week'
+      : kind === 'stats' ? 'printing-stats'
+      : kind === 'digest' ? 'printing-stats'
+      : 'printing-register';
+    NS.saveNow();
+    document.body.classList.add(cls);
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.body.classList.remove(cls); clearPageStyle(); }, 500);
+    }, 40);
+  }
+
+  function closePreview() {
+    var d = $('#printDialog');
+    if (d) { d.classList.remove('on'); d.setAttribute('aria-hidden', 'true'); }
+    var sc = $('#dlgScrim'); if (sc) sc.classList.remove('on');
+    document.body.style.overflow = '';
+    pvKind = null;
+  }
+
+  function openPrintPreview(kind) {
+    pvKind = kind;
+    var body = $('#pvBody');
+    var landscape = kind === 'register' || kind === 'week';
+    var facts = '', preview = '';
+
+    if (kind === 'register' || kind === 'week') {
+      var days = kind === 'week' ? NS.weekDays(NS.S.curD || NS.tKey()) : [NS.S.curD || NS.tKey()];
+      var day = days.filter(function (k) { return NS.cnt(k) > 0; })[0] || days[0];
+      var list = ((NS.ent()[day] || {}).rows || []).map(function (r, i) { return { r: r, i: i }; }).filter(function (x) { return NS.hasD(x.r); });
+      var cols = NS.printCols();
+      facts = '<div class="pvfacts"><span><b>' + NS.esc(kind === 'week' ? 'The week' : 'The month') + '</b> ' +
+        NS.esc(kind === 'week' ? '' : NS.fmtMonth(NS.S.curM)) + '</span>' +
+        '<span><b>' + (landscape ? 'A4 landscape' : 'A4 portrait') + '</b></span>' +
+        '<span><b>' + cols.length + '</b> columns</span>' +
+        '<span><b>' + NS.monthCount(NS.S.curM) + '</b> patients this month</span></div>';
+      preview = '<div class="pv"><div class="pvpage">' +
+        '<div class="pvh">' + NS.esc(NS.db.current) + ' — ' + NS.esc(NS.fmtMonth(NS.S.curM)) + '</div>' +
+        '<div class="pvs">First day with patients shown · the whole month prints</div>' +
+        NS.printTableHTML(day, list.length ? list : [{ r: {}, i: 0 }]) +
+        '</div></div>';
+    } else {
+      var src = $('#statOutput');
+      facts = '<div class="pvfacts"><span><b>A4 portrait</b></span><span>the table currently on screen</span></div>';
+      preview = '<div class="pv"><div class="pvpage">' + (src ? src.innerHTML : '') + '</div></div>';
+    }
+
+    body.innerHTML = facts + preview +
+      '<p class="pvnote">' + (landscape
+        ? 'The register prints as a text table — no input boxes, nothing clipped at the edge. Mobile and address are dropped in Compact.'
+        : 'Change the columns above if the sheet should look different.') + '</p>';
+
+    var d = $('#printDialog');
+    d.classList.add('on'); d.setAttribute('aria-hidden', 'false');
+    var sc = $('#dlgScrim'); if (sc) sc.classList.add('on');
+    document.body.style.overflow = 'hidden';
+    $('#pvGo').focus();
+  }
+
+  function bindPrintPreview() {
+    var reg = $('#btnPrintReg');
+    if (reg) reg.addEventListener('click', function (ev) {
+      ev.preventDefault(); ev.stopImmediatePropagation();
+      openPrintPreview(NS.S.scope === 'week' ? 'week' : 'register');
+    }, true);
+
+    var sp = $('#btnStatPrint');
+    if (sp) sp.addEventListener('click', function (ev) {
+      ev.preventDefault(); ev.stopImmediatePropagation();
+      openPrintPreview('stats');
+    }, true);
+
+    var dg = $('#btnDigest');
+    if (dg) dg.addEventListener('click', function (ev) {
+      ev.preventDefault(); ev.stopImmediatePropagation();
+      NS.runStats && NS.statsState && (NS.statsState.ran = true);
+      var out = $('#statOutput');
+      if (typeof NS.digest === 'function') NS.digest(true);   /* render only */
+      openPrintPreview('digest');
+    }, true);
+
+    if ($('#pvGo')) $('#pvGo').addEventListener('click', function () {
+      var k = pvKind;
+      closePreview();
+      doPrint(k);
+    });
+    ['#pvCancel', '#pvClose'].forEach(function (sel) {
+      var el = $(sel);
+      if (el) el.addEventListener('click', closePreview);
+    });
+  }
+
   /* ---------------- bulk day range ---------------- */
   function bindRange() {
     var btn = $('#btnRange'), panel = $('#rangePanel');
@@ -5510,6 +5664,7 @@ tr.dragging td{opacity:.45}
     bindLockPanel();
     bindNotice();
     bindBackupNotice();
+    bindPrintPreview();
     bindIdle();
     bindKeys();
 
@@ -5579,6 +5734,16 @@ tr.dragging td{opacity:.45}
         NS.toast('Column order saved for ' + NS.db.current + '.');
       });
     }
+    var pc = $('#setPrintCols');
+    if (pc) {
+      pc.value = NS.S.printCols || 'compact';
+      pc.addEventListener('change', function () {
+        NS.S.printCols = pc.value;
+        NS.settingsSave();
+        NS.toast('Printed columns saved.');
+      });
+    }
+
     var mt = $('#setMonthTarget');
     if (mt) {
       mt.value = NS.S.monthTarget || '';

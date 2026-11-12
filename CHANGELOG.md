@@ -1,5 +1,32 @@
 # Changelog
 
+## 3.14.0 — 2026-11-12
+
+Printing finished: you see the sheet before it prints, it lies the right way up, and you
+choose what goes on it.
+
+### Added
+- **A print preview** — the register and the statistics print through a dialog that shows the
+  page size, the column count, the patient count and a scaled miniature of the real sheet.
+  Cancel, or Print.
+- **Landscape for the register** — a wide table on a portrait page was always a compromise.
+  The page rule is injected for the length of the print (the register and the week), because
+  `@page` cannot be scoped to an element.
+- **Choose the printed columns** — *Compact* (everything except mobile and address, the
+  default), *Clinical only*, or *All*. It follows the screen's column order, whatever it is.
+
+### Changed
+- The digest renders without printing when the preview asks for it, so the preview shows the
+  same page the printer will get.
+
+### Dropped
+- **Two-way sync over a folder** is off the roadmap entirely, at the author's decision. The
+  file is a backup, not a transport; the app stays single-device by design.
+
+### Tests
+- 192 browser checks (was 188): the preview opens, shows what will print, and prints from
+  there; the digest and the year view print through it too.
+
 ## 3.13.0 — 2026-11-12
 
 The printed register was broken. It is fixed, and the three small ones are in.

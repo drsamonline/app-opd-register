@@ -44,6 +44,8 @@ in the register's own order · CSV mappings remembered per file shape.
 **3.13.0** — printing fixed (text table, A4 widths, no placeholders) · printable conflict
 sheet · round-trip test · backup-age reminder.
 
+**3.14.0** — print preview · landscape for the register · a choice of printed columns.
+
 ## Next (small, high value)
 
 | Item | Why | Cost |
