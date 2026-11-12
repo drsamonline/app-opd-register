@@ -898,6 +898,9 @@ tr.dragging td{opacity:.45}
   table.reg.print [data-c="diagnosis"]{width:24%}
   table.reg.print [data-c="treatment"]{width:24%}
   table.reg.print [data-c="followUp"]{width:8%}
+  .dayfoot{font-size:7.5pt;color:#555;text-align:right;padding:2px 3px 8px;border-bottom:1px solid #bbb}
+  .printcopy{page-break-before:always;break-before:page}
+  .copyTag{font-size:8pt;font-weight:700;color:#333;padding:4px 0;border-bottom:1px solid #999;margin-bottom:6px}
   body.printing-register .pagehead{display:none!important}
   .pagehead .btn,.pagehead .grow{display:none!important}   /* a Print button on paper is a joke */
   /* an empty field must print as an empty line, not as grey placeholder text */

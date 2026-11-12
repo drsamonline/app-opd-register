@@ -912,6 +912,9 @@ tr.dragging td{opacity:.45}
   table.reg.print [data-c="diagnosis"]{width:24%}
   table.reg.print [data-c="treatment"]{width:24%}
   table.reg.print [data-c="followUp"]{width:8%}
+  .dayfoot{font-size:7.5pt;color:#555;text-align:right;padding:2px 3px 8px;border-bottom:1px solid #bbb}
+  .printcopy{page-break-before:always;break-before:page}
+  .copyTag{font-size:8pt;font-weight:700;color:#333;padding:4px 0;border-bottom:1px solid #999;margin-bottom:6px}
   body.printing-register .pagehead{display:none!important}
   .pagehead .btn,.pagehead .grow{display:none!important}   /* a Print button on paper is a joke */
   /* an empty field must print as an empty line, not as grey placeholder text */
@@ -1228,6 +1231,7 @@ tr.dragging td{opacity:.45}
               <input type="checkbox" id="searchAllLoc" style="accent-color:var(--accent)"/>All locations
             </label>
             <button class="btn sm ghost" id="btnLastImport" hidden title="Show only the patients the last import brought in"></button>
+            <button class="btn sm ghost" id="btnPrintList" title="Print this list">Print list</button>
             <button class="btn sm" id="btnExportList"><svg width="13" height="13"><use href="#i-down"/></svg>Export list</button>
             <label class="chip" style="gap:6px;cursor:default">
               <span style="color:var(--muted);font-weight:700">Sort</span>
@@ -1309,6 +1313,13 @@ tr.dragging td{opacity:.45}
               <div class="field">
                 <label for="setTarget">Daily patient target (0 = off)</label>
                 <input type="number" id="setTarget" min="0" max="200" step="1" placeholder="e.g. 30"/>
+              </div>
+              <div class="field">
+                <label for="setPaper">Paper for the register</label>
+                <select id="setPaper">
+                  <option value="landscape">A4 landscape — wider, fewer pages</option>
+                  <option value="portrait">A4 portrait — taller, text wraps</option>
+                </select>
               </div>
               <div class="field">
                 <label for="setPrintCols">Columns on the printed register</label>
@@ -1497,7 +1508,12 @@ tr.dragging td{opacity:.45}
 <div class="dialog" id="printDialog" role="dialog" aria-modal="true" aria-labelledby="pvTitle" aria-hidden="true">
   <div class="dh"><h2 id="pvTitle">Print preview</h2><button class="btn icon ghost" id="pvClose" aria-label="Close"><svg width="17" height="17"><use href="#i-close"/></svg></button></div>
   <div class="db" id="pvBody"></div>
-  <div class="df"><button class="btn ghost" id="pvCancel">Cancel</button><button class="btn primary" id="pvGo">Print</button></div>
+  <div class="df">
+    <label class="chip" style="gap:6px;cursor:pointer;margin-right:auto">
+      <input type="checkbox" id="pvCopies" style="accent-color:var(--accent)"/>Two copies — one for the file
+    </label>
+    <button class="btn ghost" id="pvCancel">Cancel</button><button class="btn primary" id="pvGo">Print</button>
+  </div>
 </div>
 
 <div class="dialog" id="conflictDialog" role="dialog" aria-modal="true" aria-labelledby="cfTitle" aria-hidden="true">
@@ -2024,7 +2040,7 @@ tr.dragging td{opacity:.45}
   var DB = null;
   var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {},
             colOrder: 'default', colOrderByLoc: {}, lockIdle: 10, target: 0, monthTarget: 0, lastImport: null,
-            csvMaps: {}, lastBackup: 0, backupSnooze: 0, printCols: 'compact',
+            csvMaps: {}, lastBackup: 0, backupSnooze: 0, printCols: 'compact', paper: 'landscape',
             locked: false, lockedNow: false, lockChoice: '' };
   var events = {};
   var saveState = 'saved';
@@ -2078,6 +2094,7 @@ tr.dragging td{opacity:.45}
         if (typeof st.lastBackup === 'number') S.lastBackup = st.lastBackup;
         if (typeof st.backupSnooze === 'number') S.backupSnooze = st.backupSnooze;
         if (st.printCols === 'all' || st.printCols === 'compact' || st.printCols === 'clinical') S.printCols = st.printCols;
+        if (st.paper === 'landscape' || st.paper === 'portrait') S.paper = st.paper;
         if (typeof st.target === 'number') S.target = st.target;
         if (typeof st.monthTarget === 'number') S.monthTarget = st.monthTarget;
         if (st.lockChoice === 'on' || st.lockChoice === 'off') S.lockChoice = st.lockChoice;
@@ -2125,7 +2142,7 @@ tr.dragging td{opacity:.45}
         theme: S.theme, filter: S.filter, colOrder: S.colOrder, colOrderByLoc: S.colOrderByLoc,
         lockIdle: S.lockIdle, target: S.target, monthTarget: S.monthTarget,
         lockChoice: S.lockChoice, lastImport: S.lastImport, csvMaps: S.csvMaps,
-        lastBackup: S.lastBackup, backupSnooze: S.backupSnooze, printCols: S.printCols
+        lastBackup: S.lastBackup, backupSnooze: S.backupSnooze, printCols: S.printCols, paper: S.paper
       }));
     } catch (e) {}
   }
@@ -2997,7 +3014,9 @@ tr.dragging td{opacity:.45}
         return '<td data-c="' + f + '">' + (empty ? '' : esc(v)) + '</td>';
       }).join('') + '</tr>';
     }).join('');
-    return '<div class="tablewrap"><table class="reg print">' + head + '<tbody>' + body + '</tbody></table></div>';
+    var seen = list.filter(function (x) { return NS.hasD(x.r); }).length;
+    return '<div class="tablewrap"><table class="reg print">' + head + '<tbody>' + body + '</tbody></table></div>' +
+      '<div class="dayfoot">' + seen + ' patient' + (seen === 1 ? '' : 's') + ' this day</div>';
   }
 
   function tableHTML(k, list) {
@@ -4850,6 +4869,31 @@ tr.dragging td{opacity:.45}
     NS.toast(hits.length + ' patient' + (hits.length === 1 ? '' : 's') + ' exported.');
   }
 
+  /* the rows on screen, in the order on screen — for printing and exporting */
+  function currentRows() {
+    var q = ($('#qBig').value || '').trim().toLowerCase();
+    var allLoc = $('#searchAllLoc').checked;
+    var rows = index(allLoc);
+    var terms = q.split(/\s+/).filter(Boolean);
+    var hits = terms.length ? rows.filter(function (r) { return terms.every(function (t) { return r.hay.indexOf(t) !== -1; }); }) : rows;
+    if (onlyLast) {
+      var keys = (NS.S.lastImport && NS.S.lastImport.keys) || [];
+      if (keys.length) {
+        var set = {};
+        keys.forEach(function (k) { set[k] = 1; });
+        hits = hits.filter(function (r) { return set[r.loc + '|' + r.date + '|' + String(r.opd || '').trim()]; });
+      }
+    }
+    if (sortMode === 'old') hits = hits.slice().reverse();
+    else if (sortMode === 'name') hits = hits.slice().sort(function (a, b) { return (a.name || '\uffff').localeCompare(b.name || '\uffff'); });
+    else if (sortMode === 'opd') hits = hits.slice().sort(function (a, b) {
+      var an = parseInt(a.opd, 10), bn = parseInt(b.opd, 10);
+      if (!isNaN(an) && !isNaN(bn) && an !== bn) return an - bn;
+      return String(a.opd).localeCompare(String(b.opd));
+    });
+    return hits;
+  }
+
   function refreshLastBtn() {
     var b = $('#btnLastImport');
     if (!b) return;
@@ -4914,6 +4958,7 @@ tr.dragging td{opacity:.45}
   NS.renderSearch = render;
   NS.resetLastFilter = function () { onlyLast = false; };
   NS.exportList = exportList;
+  NS.searchRows = currentRows;
   NS.bindSearch = bind;
 })(window.OPD = window.OPD || {});
 
@@ -5169,8 +5214,8 @@ tr.dragging td{opacity:.45}
   }
   function clearPageStyle() { var el = $('#printPage'); if (el) el.remove(); }
 
-  function doPrint(kind) {
-    var landscape = kind === 'register' || kind === 'week';
+  function doPrint(kind, copies) {
+    var landscape = (kind === 'register' || kind === 'week') && NS.S.paper !== 'portrait';
     pageStyle(landscape);
     var cls = kind === 'week' ? 'printing-week'
       : kind === 'stats' ? 'printing-stats'
@@ -5178,9 +5223,25 @@ tr.dragging td{opacity:.45}
       : 'printing-register';
     NS.saveNow();
     document.body.classList.add(cls);
+    /* "one for the desk, one for the file": the same sheet twice, with a page break */
+    var twin = null;
+    if (copies === 2) {
+      var host = (kind === 'stats' || kind === 'digest') ? $('#statOutput') : $('#days');
+      if (host && host.parentNode) {
+        twin = host.cloneNode(true);
+        twin.id = 'printCopy';
+        twin.className = (host.className || '') + ' printcopy';
+        twin.insertAdjacentHTML('afterbegin', '<div class="copyTag">Copy 2 — for the file</div>');
+        host.parentNode.appendChild(twin);
+      }
+    }
     setTimeout(function () {
       window.print();
-      setTimeout(function () { document.body.classList.remove(cls); clearPageStyle(); }, 500);
+      setTimeout(function () {
+        document.body.classList.remove(cls);
+        clearPageStyle();
+        if (twin && twin.parentNode) twin.parentNode.removeChild(twin);
+      }, 600);
     }, 40);
   }
 
@@ -5195,7 +5256,7 @@ tr.dragging td{opacity:.45}
   function openPrintPreview(kind) {
     pvKind = kind;
     var body = $('#pvBody');
-    var landscape = kind === 'register' || kind === 'week';
+    var landscape = (kind === 'register' || kind === 'week') && NS.S.paper !== 'portrait';
     var facts = '', preview = '';
 
     if (kind === 'register' || kind === 'week') {
@@ -5255,13 +5316,38 @@ tr.dragging td{opacity:.45}
 
     if ($('#pvGo')) $('#pvGo').addEventListener('click', function () {
       var k = pvKind;
+      var copies = ($('#pvCopies') && $('#pvCopies').checked) ? 2 : 1;
       closePreview();
-      doPrint(k);
+      doPrint(k, copies);
     });
     ['#pvCancel', '#pvClose'].forEach(function (sel) {
       var el = $(sel);
       if (el) el.addEventListener('click', closePreview);
     });
+  }
+
+  /* the patient list, on paper: the current search, exactly as it stands */
+  function printPatientList() {
+    var rows = NS.searchRows ? NS.searchRows() : [];
+    if (!rows.length) { NS.toast('Nothing in the list to print.'); return; }
+    var q = ($('#qBig') || {}).value || '';
+    var head = '<tr><th>Date</th><th>OPD no.</th><th>Name</th><th>Age / sex</th><th>Department</th><th>Diagnosis</th><th>Treatment</th></tr>';
+    var body = rows.slice(0, 400).map(function (r) {
+      return '<tr><td>' + NS.esc(NS.fmtDay(r.date)) + '</td><td>' + NS.esc(r.opd) + '</td><td>' + NS.esc(r.name) + '</td>' +
+        '<td>' + NS.esc([NS.ageLabel(r.age), r.sex].filter(Boolean).join(' / ')) + '</td>' +
+        '<td>' + NS.esc(r.dept) + '</td><td>' + NS.esc(r.dx) + '</td><td>' + NS.esc(r.tx) + '</td></tr>';
+    }).join('');
+    $('#slip').innerHTML =
+      '<div class="sliphead"><div><b>' + NS.esc(NS.db.current) + '</b><span>Patient list' + (q ? ' — “' + NS.esc(q) + '”' : '') + '</span></div>' +
+      '<div style="text-align:right"><b>' + rows.length + ' patient(s)</b><span>' + new Date().toLocaleDateString() + '</span></div></div>' +
+      '<table class="st"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>' +
+      (rows.length > 400 ? '<p style="font-size:9pt;color:#666">First 400 shown.</p>' : '') +
+      '<div class="slipfoot"><span>Prepared from the OPD register</span><span>' + NS.esc(NS.db.current) + '</span></div>';
+    document.body.classList.add('printing-slip');
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.body.classList.remove('printing-slip'); }, 500);
+    }, 40);
   }
 
   /* ---------------- bulk day range ---------------- */
@@ -5665,6 +5751,17 @@ tr.dragging td{opacity:.45}
     bindNotice();
     bindBackupNotice();
     bindPrintPreview();
+    var pl = $('#btnPrintList');
+    if (pl) pl.addEventListener('click', printPatientList);
+    var pp = $('#setPaper');
+    if (pp) {
+      pp.value = NS.S.paper || 'landscape';
+      pp.addEventListener('change', function () {
+        NS.S.paper = pp.value;
+        NS.settingsSave();
+        NS.toast('The register will print ' + (pp.value === 'portrait' ? 'portrait.' : 'landscape.'));
+      });
+    }
     bindIdle();
     bindKeys();
 

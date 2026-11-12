@@ -117,6 +117,31 @@
     NS.toast(hits.length + ' patient' + (hits.length === 1 ? '' : 's') + ' exported.');
   }
 
+  /* the rows on screen, in the order on screen — for printing and exporting */
+  function currentRows() {
+    var q = ($('#qBig').value || '').trim().toLowerCase();
+    var allLoc = $('#searchAllLoc').checked;
+    var rows = index(allLoc);
+    var terms = q.split(/\s+/).filter(Boolean);
+    var hits = terms.length ? rows.filter(function (r) { return terms.every(function (t) { return r.hay.indexOf(t) !== -1; }); }) : rows;
+    if (onlyLast) {
+      var keys = (NS.S.lastImport && NS.S.lastImport.keys) || [];
+      if (keys.length) {
+        var set = {};
+        keys.forEach(function (k) { set[k] = 1; });
+        hits = hits.filter(function (r) { return set[r.loc + '|' + r.date + '|' + String(r.opd || '').trim()]; });
+      }
+    }
+    if (sortMode === 'old') hits = hits.slice().reverse();
+    else if (sortMode === 'name') hits = hits.slice().sort(function (a, b) { return (a.name || '\uffff').localeCompare(b.name || '\uffff'); });
+    else if (sortMode === 'opd') hits = hits.slice().sort(function (a, b) {
+      var an = parseInt(a.opd, 10), bn = parseInt(b.opd, 10);
+      if (!isNaN(an) && !isNaN(bn) && an !== bn) return an - bn;
+      return String(a.opd).localeCompare(String(b.opd));
+    });
+    return hits;
+  }
+
   function refreshLastBtn() {
     var b = $('#btnLastImport');
     if (!b) return;
@@ -181,5 +206,6 @@
   NS.renderSearch = render;
   NS.resetLastFilter = function () { onlyLast = false; };
   NS.exportList = exportList;
+  NS.searchRows = currentRows;
   NS.bindSearch = bind;
 })(window.OPD = window.OPD || {});

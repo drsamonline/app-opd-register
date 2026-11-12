@@ -166,7 +166,9 @@
         return '<td data-c="' + f + '">' + (empty ? '' : esc(v)) + '</td>';
       }).join('') + '</tr>';
     }).join('');
-    return '<div class="tablewrap"><table class="reg print">' + head + '<tbody>' + body + '</tbody></table></div>';
+    var seen = list.filter(function (x) { return NS.hasD(x.r); }).length;
+    return '<div class="tablewrap"><table class="reg print">' + head + '<tbody>' + body + '</tbody></table></div>' +
+      '<div class="dayfoot">' + seen + ' patient' + (seen === 1 ? '' : 's') + ' this day</div>';
   }
 
   function tableHTML(k, list) {

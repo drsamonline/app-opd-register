@@ -306,6 +306,7 @@
               <input type="checkbox" id="searchAllLoc" style="accent-color:var(--accent)"/>All locations
             </label>
             <button class="btn sm ghost" id="btnLastImport" hidden title="Show only the patients the last import brought in"></button>
+            <button class="btn sm ghost" id="btnPrintList" title="Print this list">Print list</button>
             <button class="btn sm" id="btnExportList"><svg width="13" height="13"><use href="#i-down"/></svg>Export list</button>
             <label class="chip" style="gap:6px;cursor:default">
               <span style="color:var(--muted);font-weight:700">Sort</span>
@@ -387,6 +388,13 @@
               <div class="field">
                 <label for="setTarget">Daily patient target (0 = off)</label>
                 <input type="number" id="setTarget" min="0" max="200" step="1" placeholder="e.g. 30"/>
+              </div>
+              <div class="field">
+                <label for="setPaper">Paper for the register</label>
+                <select id="setPaper">
+                  <option value="landscape">A4 landscape — wider, fewer pages</option>
+                  <option value="portrait">A4 portrait — taller, text wraps</option>
+                </select>
               </div>
               <div class="field">
                 <label for="setPrintCols">Columns on the printed register</label>
@@ -575,7 +583,12 @@
 <div class="dialog" id="printDialog" role="dialog" aria-modal="true" aria-labelledby="pvTitle" aria-hidden="true">
   <div class="dh"><h2 id="pvTitle">Print preview</h2><button class="btn icon ghost" id="pvClose" aria-label="Close"><svg width="17" height="17"><use href="#i-close"/></svg></button></div>
   <div class="db" id="pvBody"></div>
-  <div class="df"><button class="btn ghost" id="pvCancel">Cancel</button><button class="btn primary" id="pvGo">Print</button></div>
+  <div class="df">
+    <label class="chip" style="gap:6px;cursor:pointer;margin-right:auto">
+      <input type="checkbox" id="pvCopies" style="accent-color:var(--accent)"/>Two copies — one for the file
+    </label>
+    <button class="btn ghost" id="pvCancel">Cancel</button><button class="btn primary" id="pvGo">Print</button>
+  </div>
 </div>
 
 <div class="dialog" id="conflictDialog" role="dialog" aria-modal="true" aria-labelledby="cfTitle" aria-hidden="true">

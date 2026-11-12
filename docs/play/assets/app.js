@@ -248,8 +248,8 @@
   }
   function clearPageStyle() { var el = $('#printPage'); if (el) el.remove(); }
 
-  function doPrint(kind) {
-    var landscape = kind === 'register' || kind === 'week';
+  function doPrint(kind, copies) {
+    var landscape = (kind === 'register' || kind === 'week') && NS.S.paper !== 'portrait';
     pageStyle(landscape);
     var cls = kind === 'week' ? 'printing-week'
       : kind === 'stats' ? 'printing-stats'
@@ -257,9 +257,25 @@
       : 'printing-register';
     NS.saveNow();
     document.body.classList.add(cls);
+    /* "one for the desk, one for the file": the same sheet twice, with a page break */
+    var twin = null;
+    if (copies === 2) {
+      var host = (kind === 'stats' || kind === 'digest') ? $('#statOutput') : $('#days');
+      if (host && host.parentNode) {
+        twin = host.cloneNode(true);
+        twin.id = 'printCopy';
+        twin.className = (host.className || '') + ' printcopy';
+        twin.insertAdjacentHTML('afterbegin', '<div class="copyTag">Copy 2 — for the file</div>');
+        host.parentNode.appendChild(twin);
+      }
+    }
     setTimeout(function () {
       window.print();
-      setTimeout(function () { document.body.classList.remove(cls); clearPageStyle(); }, 500);
+      setTimeout(function () {
+        document.body.classList.remove(cls);
+        clearPageStyle();
+        if (twin && twin.parentNode) twin.parentNode.removeChild(twin);
+      }, 600);
     }, 40);
   }
 
@@ -274,7 +290,7 @@
   function openPrintPreview(kind) {
     pvKind = kind;
     var body = $('#pvBody');
-    var landscape = kind === 'register' || kind === 'week';
+    var landscape = (kind === 'register' || kind === 'week') && NS.S.paper !== 'portrait';
     var facts = '', preview = '';
 
     if (kind === 'register' || kind === 'week') {
@@ -334,13 +350,38 @@
 
     if ($('#pvGo')) $('#pvGo').addEventListener('click', function () {
       var k = pvKind;
+      var copies = ($('#pvCopies') && $('#pvCopies').checked) ? 2 : 1;
       closePreview();
-      doPrint(k);
+      doPrint(k, copies);
     });
     ['#pvCancel', '#pvClose'].forEach(function (sel) {
       var el = $(sel);
       if (el) el.addEventListener('click', closePreview);
     });
+  }
+
+  /* the patient list, on paper: the current search, exactly as it stands */
+  function printPatientList() {
+    var rows = NS.searchRows ? NS.searchRows() : [];
+    if (!rows.length) { NS.toast('Nothing in the list to print.'); return; }
+    var q = ($('#qBig') || {}).value || '';
+    var head = '<tr><th>Date</th><th>OPD no.</th><th>Name</th><th>Age / sex</th><th>Department</th><th>Diagnosis</th><th>Treatment</th></tr>';
+    var body = rows.slice(0, 400).map(function (r) {
+      return '<tr><td>' + NS.esc(NS.fmtDay(r.date)) + '</td><td>' + NS.esc(r.opd) + '</td><td>' + NS.esc(r.name) + '</td>' +
+        '<td>' + NS.esc([NS.ageLabel(r.age), r.sex].filter(Boolean).join(' / ')) + '</td>' +
+        '<td>' + NS.esc(r.dept) + '</td><td>' + NS.esc(r.dx) + '</td><td>' + NS.esc(r.tx) + '</td></tr>';
+    }).join('');
+    $('#slip').innerHTML =
+      '<div class="sliphead"><div><b>' + NS.esc(NS.db.current) + '</b><span>Patient list' + (q ? ' — “' + NS.esc(q) + '”' : '') + '</span></div>' +
+      '<div style="text-align:right"><b>' + rows.length + ' patient(s)</b><span>' + new Date().toLocaleDateString() + '</span></div></div>' +
+      '<table class="st"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>' +
+      (rows.length > 400 ? '<p style="font-size:9pt;color:#666">First 400 shown.</p>' : '') +
+      '<div class="slipfoot"><span>Prepared from the OPD register</span><span>' + NS.esc(NS.db.current) + '</span></div>';
+    document.body.classList.add('printing-slip');
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.body.classList.remove('printing-slip'); }, 500);
+    }, 40);
   }
 
   /* ---------------- bulk day range ---------------- */
@@ -744,6 +785,17 @@
     bindNotice();
     bindBackupNotice();
     bindPrintPreview();
+    var pl = $('#btnPrintList');
+    if (pl) pl.addEventListener('click', printPatientList);
+    var pp = $('#setPaper');
+    if (pp) {
+      pp.value = NS.S.paper || 'landscape';
+      pp.addEventListener('change', function () {
+        NS.S.paper = pp.value;
+        NS.settingsSave();
+        NS.toast('The register will print ' + (pp.value === 'portrait' ? 'portrait.' : 'landscape.'));
+      });
+    }
     bindIdle();
     bindKeys();
 

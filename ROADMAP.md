@@ -1,89 +1,53 @@
 # Roadmap
 
-Ordered by *value per line of code*. Everything here is meant to be small enough to keep the
-app one file — the moment a feature needs a framework, it belongs in another project.
+**There is no open backlog.** This file is a ledger, not a wish list: everything that was
+planned is either shipped or refused, with the reason written next to it. A list that keeps
+growing is a way of never finishing.
 
 ## Shipped
 
-**3.1.0** — follow-up date + mobile number · follow-ups-due panel · monthly digest ·
-duplicate patient · DOB→age · department memory · bulk day status · print one day ·
-undo an import.
+| Version | What it added |
+|---|---|
+| 3.0.0 | Five views (dashboard, register, statistics, patients, about/help) behind a rail and a bottom bar · month register with day statuses · dashboard · day/month/range statistics · print, Excel, JSON · split into six files with a test suite |
+| 3.1.0 | Follow-up date + mobile per row · follow-ups due · monthly digest · duplicate patient · date-into-age · department memory · bulk day status · print one day · undo an import |
+| 3.2.0 | Patient history with copy-prescription · next OPD number · row filter · week scope · undo a bulk range · ages as months |
+| 3.3.0 | Week as seven columns · print the week · printed visit slip · repeat prescription from a row · follow-ups by department · "last seen" gaps |
+| 3.4.0 | Undo a deleted location · search inside one day · digest week totals and a gap note · patient-list sort · the highlight-escaping fix |
+| 3.5.0 | Drag a patient to another day · column-order presets · daily target line · missing-diagnosis mode · export the patient list · undo a day status |
+| 3.6.0 | IndexedDB storage with migration and fallback · optional passphrase lock (AES-GCM) · off-screen rendering |
+| 3.7.0 | The lock offered once with a real opt-out · menu shortcut · start-again-from-backup · settings restored at boot |
+| 3.8.0 | Auto-lock when idle · encrypted backup out and back in · column order per location |
+| 3.9.0 | Year view · merge an import · "what changed" after an import · signature line on the printed week |
+| 3.10.0 | Import preview · undo an import · field-level merge · monthly target |
+| 3.11.0 | CSV import with a column mapper · named merge conflicts · "added by the last import" · checksummed backups |
+| 3.12.0 | Conflict queue resolved per field · passphrase-signed backups · month CSV in the register's order · CSV mappings remembered |
+| 3.13.0 | Printing fixed (text table, A4 widths, no placeholders) · printable conflict sheet · round-trip test · backup-age reminder |
+| 3.14.0 | Print preview · landscape register · a choice of printed columns |
+| 3.15.0 | Day totals on the printed sheet · paper size remembered · two copies · print the patient list |
 
-**3.2.0** — patient history with copy-prescription · next OPD number suggestion · row filter ·
-week scope · undo for a bulk range · ages as months.
+## Not doing — with the reason
 
-**3.3.0** — week as seven columns · print the week · printed visit slip · repeat last
-prescription from a row · follow-ups by department · "last seen" gaps.
+| Refused | Why |
+|---|---|
+| **Two-way sync over a folder or a network** | The file is a backup, not a transport. A merge that runs itself on a schedule is a way to lose a register quietly. Dropped by the author. |
+| **A server, an account, a "cloud"** | The promise is that the register never leaves the device. Anything that breaks it is a different product. |
+| **Multi-language UI** | Dropped by the author. One language, one clinical tool. |
+| **A framework, a router, a state library** | 150 KB of download and a build step, for a form. The app is six classic scripts and one stylesheet. |
+| **A chart library** | A donut is two circles; a bar is a div; a trend is 31 divs. |
+| **App-owned OPD numbering** | The hospital's series is the hospital's. The app suggests the next number; it never owns it. |
+| **Analytics of any kind** | Including "anonymous usage". There is no network call in the code. |
+| **An IPD / indoor register** | A different document with different fields. It would be a second app reusing the engine, not a column here. |
+| **Lab values with reference ranges** | That is a results system, not a register. |
+| **A prescription pad** | A4 legal requirements per state; the treatment field is a summary, not a prescription. |
+| **Hourly footfall** | Needs a time per patient that nobody enters. A field that is always empty is a lie in a report. |
 
-**3.4.0** — undo a deleted location · search inside one day · digest week totals and a
-missing-diagnosis note · patient-list sort · the highlight-escaping fix.
+## Known limits, stated rather than queued
 
-**3.5.0** — drag a patient to another day · column-order presets · daily target line ·
-missing-diagnosis mode · export the patient list · undo a day-status change.
-
-**3.6.0** — IndexedDB storage with migration and fallback · optional passphrase lock
-(AES-GCM-256) · off-screen rendering.
-
-**3.7.0** — the lock offered once with a real opt-out · menu shortcut · start-again-from-
-backup on the lock screen · settings restored at boot.
-
-**3.8.0** — auto-lock when idle · encrypted backup out and back in · column order per
-location.
-
-**3.9.0** — year view · merge an import · "what changed" after an import · signature line on
-the printed week.
-
-**3.10.0** — import preview · undo an import · field-level merge · monthly target.
-
-**3.11.0** — CSV import with a column mapper · named merge conflicts with a choice ·
-"added by the last import" · checksummed backups.
-
-**3.12.0** — a conflict queue resolved per field · passphrase-signed backups · the month CSV
-in the register's own order · CSV mappings remembered per file shape.
-
-**3.13.0** — printing fixed (text table, A4 widths, no placeholders) · printable conflict
-sheet · round-trip test · backup-age reminder.
-
-**3.14.0** — print preview · landscape for the register · a choice of printed columns.
-
-## Next (small, high value)
-
-| Item | Why | Cost |
-|---|---|---|
-| **Week totals in the digest** — a weekly column beside the daily one | The week is reviewed; the month is filed | S |
-| **Drag a patient to another day** | A patient seen on the wrong day is a two-minute fix today | M |
-| **Undo for delete-location** | The only irreversible action left without one | XS |
-| **Search inside one day** from the day header | The row filter spans every day; sometimes you want one | XS |
-| **A "no diagnosis" nudge** — count rows saved without one | Catches a half-entered day before the digest | XS |
-| **Sort the patient list by date or name** | Search results are newest-first only | XS |
-
-## Then (worth the code)
-
-| Item | Why | Cost |
-|---|---|---|
-| **Optional passphrase lock** (AES-GCM via WebCrypto, as in `app-encrypted-case-log`) | A shared machine is the real risk; the data is not encrypted at rest | M |
-| **IndexedDB instead of localStorage** | Removes the ~5 MB ceiling; the honest limit today is roughly 40,000 rows | M |
-| **Virtualised day list** — render 3 days above and below the viewport | A year of data in one scroll, still instant | M |
-| **A second register shape** — IPD or a camp register, same engine | Reuse instead of a new app | M |
-| **Hindi / Marathi / Gujarati UI** (strings in one object, `lang` switch) | Many staff type in the local script even if the app is English | M |
-| **Footfall by hour** — a time field, then a heatmap | Staffing, and the only real reason to want time | M |
-| **Share a month as a link-free file** — a self-contained HTML export of the statistics | Sending a report to someone who has no app | S |
-| **Differential backup** — export only months changed since the last export | A backup you actually run weekly | S |
-
-## Later (only if asked for)
-
-- Multi-device sync through a file the user carries (no server), e.g. a QR of a month.
-- A prescription pad template that fills from the diagnosis field.
-- Lab values with reference ranges per sex and age.
-- AYUSH / ICD-10 code columns for a scheme report.
-
-## Deliberately not doing
-
-- **A login, a server, or a "cloud".** The promise is that the register never leaves the
-  device. Anything that breaks that belongs in a different product.
-- **A framework.** React + a router + a state library would be ~150 KB of download and a
-  build step, for a form.
-- **Charts as a dependency.** A donut is two circles; a bar is a div.
-- **Auto-incrementing OPD numbers owned by the app.** The hospital's number series is the
-  hospital's, and a second series that disagrees with the paper register is worse than none.
-- **Sending anything to analytics.** Including "anonymous usage stats".
+- **Single device.** No sync, by decision. Moving a register means exporting a file.
+- **Unencrypted by default.** The lock is opt-in; the lock screen says the passphrase cannot
+  be recovered.
+- **IndexedDB ceiling.** ~50 MB in practice, far beyond decades of a single clinic.
+- **Merging reconciles fields, not intent.** A patient whose filled fields differ is queued
+  for a human decision, not guessed at.
+- **The app cannot verify it is up to date.** There is no network call, so no update check;
+  the release page is the place to look.

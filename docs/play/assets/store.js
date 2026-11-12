@@ -103,7 +103,7 @@
   var DB = null;
   var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {},
             colOrder: 'default', colOrderByLoc: {}, lockIdle: 10, target: 0, monthTarget: 0, lastImport: null,
-            csvMaps: {}, lastBackup: 0, backupSnooze: 0, printCols: 'compact',
+            csvMaps: {}, lastBackup: 0, backupSnooze: 0, printCols: 'compact', paper: 'landscape',
             locked: false, lockedNow: false, lockChoice: '' };
   var events = {};
   var saveState = 'saved';
@@ -157,6 +157,7 @@
         if (typeof st.lastBackup === 'number') S.lastBackup = st.lastBackup;
         if (typeof st.backupSnooze === 'number') S.backupSnooze = st.backupSnooze;
         if (st.printCols === 'all' || st.printCols === 'compact' || st.printCols === 'clinical') S.printCols = st.printCols;
+        if (st.paper === 'landscape' || st.paper === 'portrait') S.paper = st.paper;
         if (typeof st.target === 'number') S.target = st.target;
         if (typeof st.monthTarget === 'number') S.monthTarget = st.monthTarget;
         if (st.lockChoice === 'on' || st.lockChoice === 'off') S.lockChoice = st.lockChoice;
@@ -204,7 +205,7 @@
         theme: S.theme, filter: S.filter, colOrder: S.colOrder, colOrderByLoc: S.colOrderByLoc,
         lockIdle: S.lockIdle, target: S.target, monthTarget: S.monthTarget,
         lockChoice: S.lockChoice, lastImport: S.lastImport, csvMaps: S.csvMaps,
-        lastBackup: S.lastBackup, backupSnooze: S.backupSnooze, printCols: S.printCols
+        lastBackup: S.lastBackup, backupSnooze: S.backupSnooze, printCols: S.printCols, paper: S.paper
       }));
     } catch (e) {}
   }

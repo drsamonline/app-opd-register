@@ -22,7 +22,7 @@ browser on your device; the page makes no network request at all.
 | **Single HTML file** | [`dist/opd-register.html`](dist/opd-register.html) — ~130 KB, opens from a USB stick |
 | **Windows EXE / Android APK** | [releases](https://github.com/drsamonline/app-opd-register/releases/latest) |
 | **Source** | https://github.com/drsamonline/app-opd-register |
-| **Changelog** | [CHANGELOG.md](CHANGELOG.md) · [ROADMAP.md](ROADMAP.md) |
+| **Changelog** | [CHANGELOG.md](CHANGELOG.md) · [ROADMAP.md](ROADMAP.md) (a ledger: nothing open) |
 | **All projects** | https://drsamonline.github.io/ |
 
 <!-- shot:start -->
@@ -50,6 +50,7 @@ Screens at both widths: [`docs/assets/app-desktop.png`](docs/assets/app-desktop.
 [`docs/assets/app-conflicts.png`](docs/assets/app-conflicts.png) (resolving differences one field at a time),
 [`docs/assets/app-print.png`](docs/assets/app-print.png) (the register as it prints, landscape),
 [`docs/assets/app-printpreview.png`](docs/assets/app-printpreview.png) (the print preview),
+[`docs/assets/app-printlist.png`](docs/assets/app-printlist.png) (the patient list on paper),
 [`docs/assets/app-settings.png`](docs/assets/app-settings.png) (display, lock, storage),
 [`docs/assets/app-digest.png`](docs/assets/app-digest.png) (the printable digest) and
 [`docs/assets/app-stats.png`](docs/assets/app-stats.png). Badges are drawn locally by

@@ -1,5 +1,25 @@
 # Changelog
 
+## 3.15.0 — 2026-11-12
+
+The last four, and the backlog closed behind them.
+
+### Added
+- **Day totals on the printed sheet** — each day's table ends with "6 patients this day".
+- **Paper size is remembered** — A4 landscape (default) or portrait for the register; the
+  preview says which, and the injected `@page` rule follows it.
+- **Two copies from one dialog** — *Two copies — one for the file* prints the same sheet
+  twice with a page break and a "Copy 2" tag.
+- **Print the patient list** — the current search result, filtered and sorted as it stands,
+  on a slip with a header and a footer.
+
+### Changed
+- `ROADMAP.md` is now a ledger: everything planned is shipped or refused, with the reason.
+  There is no "next" section, because a list that keeps growing is a way of never finishing.
+
+### Tests
+- 198 browser checks (was 192): day totals, paper choice, two copies, printed list.
+
 ## 3.14.0 — 2026-11-12
 
 Printing finished: you see the sheet before it prints, it lies the right way up, and you
