@@ -1,5 +1,35 @@
 # Changelog
 
+## 3.13.0 — 2026-11-12
+
+The printed register was broken. It is fixed, and the three small ones are in.
+
+### Fixed — printing the register
+- **Printing produced the phone layout.** A printed page is ~794 CSS px wide, so
+  `max-width: 900px` matched during printing and the app re-rendered the register as cards.
+  Print is now never treated as narrow.
+- **The table did not fit A4.** Columns were fixed at 1142 px, so the right-hand columns were
+  cut off. Print now renders a **text table**: `table-layout: fixed`, widths per field,
+  wrapping cells, no inputs — nothing to clip, and no placeholder printing in an empty field.
+- **Off-screen days were skipped.** `content-visibility: auto` was suppressing boxes that are
+  not on screen; on paper there is no screen, so it is switched off in print.
+- **The day header printed a dropdown and a note field**; it now prints as text, and empty
+  rows print as empty lines rather than a stray "New".
+- The Print button and the page actions are no longer printed, and a zero-count department
+  bar no longer draws a sliver.
+
+### Added
+- **A printable conflict sheet** — the differences left by a merge, on paper, with tick boxes
+  for the desk.
+- **Test the round trip** — exports in memory and reads the file back, then says whether the
+  register survived it unchanged.
+- **A backup-age reminder** — once a week, when no export has been made, with *Export now* and
+  *Later* (three days).
+
+### Tests
+- 188 browser checks (was 176): the printed table is a table, has no inputs, keeps its text,
+  leaves mobile and address off, prints no dropdowns, and does not scroll sideways at 794 px.
+
 ## 3.12.0 — 2026-11-12
 
 The round trip closes: out to a spreadsheet and back in, and nothing quietly overruled.

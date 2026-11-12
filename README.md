@@ -48,6 +48,7 @@ Screens at both widths: [`docs/assets/app-desktop.png`](docs/assets/app-desktop.
 [`docs/assets/app-conflict.png`](docs/assets/app-conflict.png) (what differs, and which side wins),
 [`docs/assets/app-csv.png`](docs/assets/app-csv.png) (the spreadsheet column mapper),
 [`docs/assets/app-conflicts.png`](docs/assets/app-conflicts.png) (resolving differences one field at a time),
+[`docs/assets/app-print.png`](docs/assets/app-print.png) (the register as it prints),
 [`docs/assets/app-settings.png`](docs/assets/app-settings.png) (display, lock, storage),
 [`docs/assets/app-digest.png`](docs/assets/app-digest.png) (the printable digest) and
 [`docs/assets/app-stats.png`](docs/assets/app-stats.png). Badges are drawn locally by
@@ -145,6 +146,10 @@ brought in can be found again from one button in *Patients*.
 it, rows without a date go to a day you choose, and the same preview follows. Quoted commas,
 CRLF and `dd/mm/yyyy` all survive. The mapping is **remembered for that shape of file**, so
 next month's export maps itself.
+
+**A backup that is getting old says so** — one notice, once a week, with *Export now* and
+*Later* (which waits three days). And *Test the round trip* in the same panel exports in
+memory and reads the file back, so the backup path is proven before you need it.
 
 **Differences are not swallowed.** When both sides hold a value for the same patient, the
 preview lists them and the merge leaves a **queue** in the register — *Resolve 3 differences* —

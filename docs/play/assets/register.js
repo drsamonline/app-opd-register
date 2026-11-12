@@ -5,11 +5,14 @@
   var S = NS.S;
 
   var mqNarrow = window.matchMedia('(max-width: 900px)');
+  var mqPrint = window.matchMedia('print');
   S.scope = 'month';
   S.rowFilter = '';
   S.onlyDay = '';
   S.missingOnly = false;
-  function narrow() { return mqNarrow.matches; }
+  /* A printed page is ~794 CSS px wide, so `max-width: 900px` matches while printing and the
+     register used to re-render itself as phone cards on paper. Print is never "narrow". */
+  function narrow() { return mqNarrow.matches && !mqPrint.matches; }
 
   /* ================= CALENDAR ================= */
   function renderCal() {
@@ -126,11 +129,32 @@
   };
 
   function rowHTML(r, i) {
-    var cells = order().map(function (f) { return CELL[f](r); }).join('');
+    var cells = order().map(function (f) {
+      return CELL[f](r).replace('<td', '<td data-c="' + f + '"');
+    }).join('');
     return '<td class="sr num" draggable="true" data-drag="' + i + '" title="Drag this row to another day, or click to open the patient">' + (i + 1) + '</td>' +
       cells +
       '<td class="acts"><button class="rowrep" data-rep="' + i + '" title="Repeat the last prescription for this OPD no." aria-label="Repeat last prescription">&#8635;</button>' +
       '<button class="rowdel" data-del="' + i + '" title="Delete row" aria-label="Delete row">&times;</button></td>';
+  }
+
+  /* Paper gets text, not input boxes: a box clips its own value at 8pt, and an empty field
+     would print its placeholder. Columns drop mobile and address, which nobody reads back
+     off a printout. */
+  function printTableHTML(k, list) {
+    var cols = order().filter(function (f) { return f !== 'phone' && f !== 'address'; });
+    var head = '<thead><tr><th>#</th>' + cols.map(function (f) {
+      return '<th data-c="' + f + '">' + COLHEAD[f] + '</th>';
+    }).join('') + '</tr></thead>';
+    var body = list.map(function (x) {
+      var empty = !NS.hasD(x.r);
+      return '<tr><td class="sr">' + (x.i + 1) + '</td>' + cols.map(function (f) {
+        var v = x.r[f] || '';
+        if (!empty && f === 'followUp' && v) v = NS.fmtDay(v);
+        return '<td data-c="' + f + '">' + (empty ? '' : esc(v)) + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+    return '<div class="tablewrap"><table class="reg print">' + head + '<tbody>' + body + '</tbody></table></div>';
   }
 
   function tableHTML(k, list) {
@@ -178,20 +202,25 @@
       '<div class="dayhead' + (k === S.curD ? ' sel' : '') + '" data-date="' + k + '">' +
       '<button class="dt" data-toggle="' + k + '" aria-expanded="' + open + '" title="Expand or collapse">' + esc(lbl) + (dow ? '<small>' + esc(dow) + '</small>' : '') + '</button>' +
       '<span class="cnt' + (c ? ' live' : '') + '" data-cnt="' + k + '">' + c + '</span>' +
-      '<select class="selx st-' + st + '" data-dstat="' + k + '" aria-label="Day status for ' + k + '">' +
-      NS.SO.map(function (x) { return '<option value="' + x + '"' + (st === x ? ' selected' : '') + '>' + NS.ST[x].l + '</option>'; }).join('') +
-      '</select>' +
-      '<input class="note" data-dnote="' + k + '" placeholder="Note — camp, festival, half day…" value="' + esc(e.note || '') + '">' +
-      '<span class="dayacts">' +
+      (mqPrint.matches
+        ? '<span class="selx st-' + st + '" style="pointer-events:none">' + NS.ST[st].l + '</span>' +
+          (e.note ? '<span class="note" style="border:0">' + esc(e.note) + '</span>' : '')
+        : '<select class="selx st-' + st + '" data-dstat="' + k + '" aria-label="Day status for ' + k + '">' +
+          NS.SO.map(function (x) { return '<option value="' + x + '"' + (st === x ? ' selected' : '') + '>' + NS.ST[x].l + '</option>'; }).join('') +
+          '</select>' +
+          '<input class="note" data-dnote="' + k + '" placeholder="Note — camp, festival, half day…" value="' + esc(e.note || '') + '">') +
+      (mqPrint.matches ? '' : '<span class="dayacts">' +
       '<button data-add="' + k + '" title="Add a patient row" aria-label="Add a patient row"><svg width="14" height="14"><use href="#i-plus"/></svg></button>' +
       '<button data-daysearch="' + k + '" title="Search inside this day" aria-label="Search inside this day"><svg width="13" height="13"><use href="#i-search"/></svg></button>' +
       '<button data-printday="' + k + '" title="Print this day" aria-label="Print this day"><svg width="13" height="13"><use href="#i-print"/></svg></button>' +
       '<button class="danger" data-clear="' + k + '" title="Clear this day" aria-label="Clear this day"><svg width="13" height="13"><use href="#i-trash"/></svg></button>' +
-      '</span></div>';
+      '</span>') + '</div>';
     if (open) {
       var list = rowsMatching(k);
       if (S.rowFilter && !list.length) {
         h += '<div class="empty" style="padding:14px">No row in this day matches “' + esc(S.rowFilter) + '”.</div>';
+      } else if (mqPrint.matches) {
+        h += printTableHTML(k, list);
       } else {
         h += narrow() ? cardsHTML(k, list) : tableHTML(k, list);
       }
@@ -1043,6 +1072,7 @@
       if (document.querySelector('#view-register') && !document.querySelector('#view-register').hidden) renderRegister();
     }, 250));
     if (mqNarrow.addEventListener) mqNarrow.addEventListener('change', function () { renderRegister(); });
+    if (mqPrint.addEventListener) mqPrint.addEventListener('change', function () { renderRegister(); });
   }
 
   function syncMonthInputs() {

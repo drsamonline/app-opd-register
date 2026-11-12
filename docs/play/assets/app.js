@@ -405,6 +405,40 @@
 
   /* The lock is optional, and the choice is made once and remembered — a prompt that
      nags every launch is the reason people turn features off. */
+  /* a register that is only in one browser deserves a nudge once a week */
+  function maybeShowBackupNotice() {
+    var el = $('#backupNotice');
+    if (!el) return;
+    var total = NS.allCases({ allLoc: true }).length;
+    var week = 7 * 864e5;
+    var stale = !NS.S.lastBackup || (Date.now() - NS.S.lastBackup) > week;
+    var snoozed = NS.S.backupSnooze && (Date.now() - NS.S.backupSnooze) < 3 * 864e5;
+    var show = !NS.isDemo() && total > 0 && stale && !snoozed && !(NS.S.locked && NS.S.lockedNow);
+    el.hidden = !show;
+    if (show) {
+      var sub = $('#backupNoticeSub');
+      if (sub) {
+        sub.textContent = NS.S.lastBackup
+          ? 'Last export ' + Math.round((Date.now() - NS.S.lastBackup) / 864e5) + ' days ago · ' + total + ' patients in this browser only.'
+          : total + ' patients are in this browser only. Export a copy.';
+      }
+    }
+  }
+
+  function bindBackupNotice() {
+    var now = $('#btnBackupNow'), later = $('#btnBackupLater');
+    if (now) now.addEventListener('click', function () {
+      NS.exportJson();
+      $('#backupNotice').hidden = true;
+    });
+    if (later) later.addEventListener('click', function () {
+      NS.S.backupSnooze = Date.now();
+      NS.settingsSave();
+      $('#backupNotice').hidden = true;
+      NS.toast('Asked again in three days.');
+    });
+  }
+
   function maybeShowNotice() {
     var el = $('#lockNotice');
     if (!el) return;
@@ -598,6 +632,7 @@
     bindRange();
     bindLockPanel();
     bindNotice();
+    bindBackupNotice();
     bindIdle();
     bindKeys();
 
@@ -627,6 +662,34 @@
     $('#btnDelLoc').addEventListener('click', deleteLocation);
     $('#btnExportJson').addEventListener('click', NS.exportJson);
     $('#btnExportCsvAll').addEventListener('click', function () { NS.exportMonthCsv(NS.S.curM); });
+    var rt = $('#btnRoundTrip');
+    if (rt) rt.addEventListener('click', function () {
+      var before = JSON.stringify(NS.db);
+      var parsed, after;
+      try {
+        parsed = JSON.parse(before);
+        after = NS.validDB(parsed);
+      } catch (e) {
+        NS.toast('The round trip failed: the file could not be read back.');
+        return;
+      }
+      var count = function (db) {
+        var n = 0;
+        Object.keys(db.locations).forEach(function (l) {
+          var E = db.locations[l].entries || {};
+          Object.keys(E).forEach(function (k) { n += ((E[k] || {}).rows || []).filter(NS.hasD).length; });
+        });
+        return n;
+      };
+      var a = count(NS.db), b = count(after);
+      var sameShape = JSON.stringify(Object.keys(NS.db.locations).sort()) === JSON.stringify(Object.keys(after.locations).sort());
+      if (a === b && sameShape) {
+        NS.toast('Round trip OK — ' + a + ' patient(s), ' + Object.keys(NS.db.locations).length + ' location(s), read back identical.');
+      } else {
+        NS.toast('Round trip mismatch: ' + a + ' patients here, ' + b + ' read back.');
+      }
+    });
+
     var sc = $('#setCols'), st = $('#setTarget');
     if (sc) {
       sc.value = NS.locOrder ? NS.locOrder(NS.db.current) : NS.S.colOrder;
@@ -884,6 +947,26 @@
       var parts = b.dataset.cf.split(':');
       applyConflict(+parts[0], +parts[1], parts[2]);
     });
+    if ($('#cfPrint')) $('#cfPrint').addEventListener('click', function () {
+      var rows = conflicts.map(function (c) {
+        return '<tr><td>' + NS.esc(c.name || 'Unnamed') + '</td><td>' + NS.esc(NS.fmtDay(c.day)) + '</td>' +
+          c.fields.map(function (f) {
+            return NS.esc(f.f) + ': ' + NS.esc(String(f.mine) || '—') + ' / ' + NS.esc(String(f.theirs) || '—');
+          }).join('<br>') + '</td><td style="width:70px"></td><td style="width:70px"></td></tr>';
+      }).join('');
+      $('#slip').innerHTML =
+        '<div class="sliphead"><div><b>' + NS.esc(NS.db.current) + '</b><span>Differences after an import — to settle at the desk</span></div>' +
+        '<div style="text-align:right"><b>' + conflicts.length + ' to resolve</b><span>' + new Date().toLocaleDateString() + '</span></div></div>' +
+        '<table class="st"><thead><tr><th>Patient</th><th>Day</th><th>Field · here / file</th><th>Tick one</th><th>Tick one</th></tr></thead><tbody>' +
+        rows + '</tbody></table>' +
+        '<div class="slipfoot"><span>Signature: ____________________</span><span>Prepared from the OPD register</span></div>';
+      document.body.classList.add('printing-slip');
+      setTimeout(function () {
+        window.print();
+        setTimeout(function () { document.body.classList.remove('printing-slip'); }, 400);
+      }, 40);
+    });
+
     ['#cfClose', '#cfDone'].forEach(function (sel) {
       var el = $(sel);
       if (el) el.addEventListener('click', function () {
@@ -1036,6 +1119,7 @@
     renderLocUI();
     updateStoreInfo();
     maybeShowNotice();
+    maybeShowBackupNotice();
     armIdle();
 
     var hash = (location.hash || '').replace('#', '');

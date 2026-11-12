@@ -96,6 +96,15 @@
 
   <!-- ============ MAIN ============ -->
   <main id="main">
+    <div class="notice" id="backupNotice" hidden>
+      <div class="ni">⛁</div>
+      <div class="nt"><b>Your last backup is getting old</b>
+        <span id="backupNoticeSub">Export a copy — the register lives only in this browser.</span></div>
+      <div class="na">
+        <button class="btn sm primary" id="btnBackupNow">Export now</button>
+        <button class="btn sm ghost" id="btnBackupLater">Later</button>
+      </div>
+    </div>
     <div class="notice" id="lockNotice" hidden>
       <div class="ni">⛨</div>
       <div class="nt"><b>Protect this register with a passphrase?</b>
@@ -243,7 +252,7 @@
         <button class="btn sm" id="btnStatCsv"><svg width="14" height="14"><use href="#i-down"/></svg>CSV</button>
       </div>
 
-      <section class="panel">
+      <section class="panel stats-controls">
         <div class="pb">
           <div class="controls">
             <div class="segmented" id="statMode" role="group" aria-label="Report mode">
@@ -340,6 +349,7 @@
                 <label class="btn"><svg width="14" height="14"><use href="#i-up"/></svg>Merge a backup<input type="file" id="fileMerge" accept=".json,application/json" hidden/></label>
                 <label class="btn"><svg width="14" height="14"><use href="#i-up"/></svg>Replace with a backup<input type="file" id="fileImport" accept=".json,application/json" hidden/></label>
                 <label class="btn"><svg width="14" height="14"><use href="#i-up"/></svg>Import a spreadsheet<input type="file" id="fileCsv" accept=".csv,text/csv" hidden/></label>
+                <button class="btn ghost" id="btnRoundTrip" title="Export in memory and read it back, to prove the backup path works">Test the round trip</button>
                 <button class="btn" id="btnExportCsvAll">Export CSV</button>
               </div>
               <p style="font-size:12px;color:var(--muted)">A backup file holds every location and every month. <b>Merge</b> adds what is missing and keeps what is here; <b>Replace</b> throws the current register away and puts the file in its place.</p>
@@ -557,7 +567,7 @@
 <div class="dialog" id="conflictDialog" role="dialog" aria-modal="true" aria-labelledby="cfTitle" aria-hidden="true">
   <div class="dh"><h2 id="cfTitle">Differences from the import</h2><button class="btn icon ghost" id="cfClose" aria-label="Close"><svg width="17" height="17"><use href="#i-close"/></svg></button></div>
   <div class="db" id="cfBody"></div>
-  <div class="df"><button class="btn primary" id="cfDone">Done</button></div>
+  <div class="df"><button class="btn" id="cfPrint">Print the list</button><button class="btn primary" id="cfDone">Done</button></div>
 </div>
 
 <div class="dialog" id="csvDialog" role="dialog" aria-modal="true" aria-labelledby="csvTitle" aria-hidden="true">

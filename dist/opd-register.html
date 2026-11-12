@@ -878,6 +878,38 @@ tr.dragging td{opacity:.45}
   main{padding:0}
   .panel{border:0;box-shadow:none}
   .dayhead{position:static;background:#f2f2f2!important;print-color-adjust:exact}
+  /* content-visibility skips off-screen boxes; on paper there is no screen */
+  .day{content-visibility:visible!important;contain-intrinsic-size:none!important}
+  /* The printed register is a text table, so nothing is clipped and no placeholder prints. */
+  table.reg.print{table-layout:fixed;width:100%;min-width:0;font-size:8pt;border-collapse:collapse}
+  table.reg.print thead th{font-size:6.5pt;padding:3px 3px;letter-spacing:0;background:#eef1f5!important;print-color-adjust:exact}
+  table.reg.print td{padding:2.5px 3px;border-bottom:1px solid #ccc;white-space:normal;word-break:break-word;
+    vertical-align:top;line-height:1.25;font-size:8pt;color:#111}
+  table.reg.print tr:hover td{background:transparent}
+  /* with table-layout:fixed the HEADER row decides the widths, so the number column needs
+     its width there too, or it collapses and the OPD numbers slide over it */
+  table.reg.print thead th:first-child{width:4.5%}
+  table.reg.print .sr{width:4.5%;text-align:center;color:#666;position:static!important;background:transparent!important}
+  .dayhead .selx{border:0!important;background:transparent!important;padding-left:0;font-size:9pt}
+  .dayhead .note{border:0!important;background:transparent!important;font-size:9pt;color:#333}
+  table.reg.print [data-c="opd"]{width:8%}
+  table.reg.print [data-c="caseType"]{width:5%}
+  table.reg.print [data-c="department"]{width:12%}
+  table.reg.print [data-c="name"]{width:15%}
+  table.reg.print [data-c="age"]{width:4.5%}
+  table.reg.print [data-c="sex"]{width:4%}
+  table.reg.print [data-c="diagnosis"]{width:24%}
+  table.reg.print [data-c="treatment"]{width:24%}
+  table.reg.print [data-c="followUp"]{width:8%}
+  body.printing-register .pagehead{display:none!important}
+  .pagehead .btn,.pagehead .grow{display:none!important}   /* a Print button on paper is a joke */
+  /* an empty field must print as an empty line, not as grey placeholder text */
+  input::placeholder,textarea::placeholder{color:transparent!important}
+  .dayhead .note{border:0!important;background:transparent!important}
+  .dayhead .note::placeholder{color:transparent!important}
+  body.printing-stats .stats-controls,body.printing-stats .pagehead{display:none!important}
+  body.printing-stats #statOutput{border:0;padding:0}
+  body.printing-week .wsum,body.printing-week .pagehead{display:none!important}
   .tablewrap{display:block!important;max-height:none;overflow:visible}
   table.reg{min-width:0;font-size:9.5pt}
   .cellin{border:0;height:auto;padding:2px 4px}
@@ -975,6 +1007,15 @@ tr.dragging td{opacity:.45}
 
   <!-- ============ MAIN ============ -->
   <main id="main">
+    <div class="notice" id="backupNotice" hidden>
+      <div class="ni">⛁</div>
+      <div class="nt"><b>Your last backup is getting old</b>
+        <span id="backupNoticeSub">Export a copy — the register lives only in this browser.</span></div>
+      <div class="na">
+        <button class="btn sm primary" id="btnBackupNow">Export now</button>
+        <button class="btn sm ghost" id="btnBackupLater">Later</button>
+      </div>
+    </div>
     <div class="notice" id="lockNotice" hidden>
       <div class="ni">⛨</div>
       <div class="nt"><b>Protect this register with a passphrase?</b>
@@ -1122,7 +1163,7 @@ tr.dragging td{opacity:.45}
         <button class="btn sm" id="btnStatCsv"><svg width="14" height="14"><use href="#i-down"/></svg>CSV</button>
       </div>
 
-      <section class="panel">
+      <section class="panel stats-controls">
         <div class="pb">
           <div class="controls">
             <div class="segmented" id="statMode" role="group" aria-label="Report mode">
@@ -1219,6 +1260,7 @@ tr.dragging td{opacity:.45}
                 <label class="btn"><svg width="14" height="14"><use href="#i-up"/></svg>Merge a backup<input type="file" id="fileMerge" accept=".json,application/json" hidden/></label>
                 <label class="btn"><svg width="14" height="14"><use href="#i-up"/></svg>Replace with a backup<input type="file" id="fileImport" accept=".json,application/json" hidden/></label>
                 <label class="btn"><svg width="14" height="14"><use href="#i-up"/></svg>Import a spreadsheet<input type="file" id="fileCsv" accept=".csv,text/csv" hidden/></label>
+                <button class="btn ghost" id="btnRoundTrip" title="Export in memory and read it back, to prove the backup path works">Test the round trip</button>
                 <button class="btn" id="btnExportCsvAll">Export CSV</button>
               </div>
               <p style="font-size:12px;color:var(--muted)">A backup file holds every location and every month. <b>Merge</b> adds what is missing and keeps what is here; <b>Replace</b> throws the current register away and puts the file in its place.</p>
@@ -1436,7 +1478,7 @@ tr.dragging td{opacity:.45}
 <div class="dialog" id="conflictDialog" role="dialog" aria-modal="true" aria-labelledby="cfTitle" aria-hidden="true">
   <div class="dh"><h2 id="cfTitle">Differences from the import</h2><button class="btn icon ghost" id="cfClose" aria-label="Close"><svg width="17" height="17"><use href="#i-close"/></svg></button></div>
   <div class="db" id="cfBody"></div>
-  <div class="df"><button class="btn primary" id="cfDone">Done</button></div>
+  <div class="df"><button class="btn" id="cfPrint">Print the list</button><button class="btn primary" id="cfDone">Done</button></div>
 </div>
 
 <div class="dialog" id="csvDialog" role="dialog" aria-modal="true" aria-labelledby="csvTitle" aria-hidden="true">
@@ -1957,7 +1999,7 @@ tr.dragging td{opacity:.45}
   var DB = null;
   var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {},
             colOrder: 'default', colOrderByLoc: {}, lockIdle: 10, target: 0, monthTarget: 0, lastImport: null,
-            csvMaps: {},
+            csvMaps: {}, lastBackup: 0, backupSnooze: 0,
             locked: false, lockedNow: false, lockChoice: '' };
   var events = {};
   var saveState = 'saved';
@@ -2008,6 +2050,8 @@ tr.dragging td{opacity:.45}
         if (typeof st.lockIdle === 'number') S.lockIdle = st.lockIdle;
         if (st.lastImport) S.lastImport = st.lastImport;
         if (st.csvMaps && typeof st.csvMaps === 'object') S.csvMaps = st.csvMaps;
+        if (typeof st.lastBackup === 'number') S.lastBackup = st.lastBackup;
+        if (typeof st.backupSnooze === 'number') S.backupSnooze = st.backupSnooze;
         if (typeof st.target === 'number') S.target = st.target;
         if (typeof st.monthTarget === 'number') S.monthTarget = st.monthTarget;
         if (st.lockChoice === 'on' || st.lockChoice === 'off') S.lockChoice = st.lockChoice;
@@ -2054,7 +2098,8 @@ tr.dragging td{opacity:.45}
       localStorage.setItem(KS, JSON.stringify({
         theme: S.theme, filter: S.filter, colOrder: S.colOrder, colOrderByLoc: S.colOrderByLoc,
         lockIdle: S.lockIdle, target: S.target, monthTarget: S.monthTarget,
-        lockChoice: S.lockChoice, lastImport: S.lastImport, csvMaps: S.csvMaps
+        lockChoice: S.lockChoice, lastImport: S.lastImport, csvMaps: S.csvMaps,
+        lastBackup: S.lastBackup, backupSnooze: S.backupSnooze
       }));
     } catch (e) {}
   }
@@ -2403,6 +2448,8 @@ tr.dragging td{opacity:.45}
           exported: new Date().toISOString(), sha256: sum, hmac: mac || undefined, data: DB
         };
         download('opd-register-backup-' + todayKey() + '.json', JSON.stringify(payload, null, 2), 'application/json');
+        S.lastBackup = Date.now();
+        settingsSave();
         toast(mac ? 'Backup saved, signed with your passphrase.'
           : (sum ? 'Backup saved, with a checksum.' : 'Backup saved — every location, every month.'));
       });
@@ -2763,11 +2810,14 @@ tr.dragging td{opacity:.45}
   var S = NS.S;
 
   var mqNarrow = window.matchMedia('(max-width: 900px)');
+  var mqPrint = window.matchMedia('print');
   S.scope = 'month';
   S.rowFilter = '';
   S.onlyDay = '';
   S.missingOnly = false;
-  function narrow() { return mqNarrow.matches; }
+  /* A printed page is ~794 CSS px wide, so `max-width: 900px` matches while printing and the
+     register used to re-render itself as phone cards on paper. Print is never "narrow". */
+  function narrow() { return mqNarrow.matches && !mqPrint.matches; }
 
   /* ================= CALENDAR ================= */
   function renderCal() {
@@ -2884,11 +2934,32 @@ tr.dragging td{opacity:.45}
   };
 
   function rowHTML(r, i) {
-    var cells = order().map(function (f) { return CELL[f](r); }).join('');
+    var cells = order().map(function (f) {
+      return CELL[f](r).replace('<td', '<td data-c="' + f + '"');
+    }).join('');
     return '<td class="sr num" draggable="true" data-drag="' + i + '" title="Drag this row to another day, or click to open the patient">' + (i + 1) + '</td>' +
       cells +
       '<td class="acts"><button class="rowrep" data-rep="' + i + '" title="Repeat the last prescription for this OPD no." aria-label="Repeat last prescription">&#8635;</button>' +
       '<button class="rowdel" data-del="' + i + '" title="Delete row" aria-label="Delete row">&times;</button></td>';
+  }
+
+  /* Paper gets text, not input boxes: a box clips its own value at 8pt, and an empty field
+     would print its placeholder. Columns drop mobile and address, which nobody reads back
+     off a printout. */
+  function printTableHTML(k, list) {
+    var cols = order().filter(function (f) { return f !== 'phone' && f !== 'address'; });
+    var head = '<thead><tr><th>#</th>' + cols.map(function (f) {
+      return '<th data-c="' + f + '">' + COLHEAD[f] + '</th>';
+    }).join('') + '</tr></thead>';
+    var body = list.map(function (x) {
+      var empty = !NS.hasD(x.r);
+      return '<tr><td class="sr">' + (x.i + 1) + '</td>' + cols.map(function (f) {
+        var v = x.r[f] || '';
+        if (!empty && f === 'followUp' && v) v = NS.fmtDay(v);
+        return '<td data-c="' + f + '">' + (empty ? '' : esc(v)) + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+    return '<div class="tablewrap"><table class="reg print">' + head + '<tbody>' + body + '</tbody></table></div>';
   }
 
   function tableHTML(k, list) {
@@ -2936,20 +3007,25 @@ tr.dragging td{opacity:.45}
       '<div class="dayhead' + (k === S.curD ? ' sel' : '') + '" data-date="' + k + '">' +
       '<button class="dt" data-toggle="' + k + '" aria-expanded="' + open + '" title="Expand or collapse">' + esc(lbl) + (dow ? '<small>' + esc(dow) + '</small>' : '') + '</button>' +
       '<span class="cnt' + (c ? ' live' : '') + '" data-cnt="' + k + '">' + c + '</span>' +
-      '<select class="selx st-' + st + '" data-dstat="' + k + '" aria-label="Day status for ' + k + '">' +
-      NS.SO.map(function (x) { return '<option value="' + x + '"' + (st === x ? ' selected' : '') + '>' + NS.ST[x].l + '</option>'; }).join('') +
-      '</select>' +
-      '<input class="note" data-dnote="' + k + '" placeholder="Note — camp, festival, half day…" value="' + esc(e.note || '') + '">' +
-      '<span class="dayacts">' +
+      (mqPrint.matches
+        ? '<span class="selx st-' + st + '" style="pointer-events:none">' + NS.ST[st].l + '</span>' +
+          (e.note ? '<span class="note" style="border:0">' + esc(e.note) + '</span>' : '')
+        : '<select class="selx st-' + st + '" data-dstat="' + k + '" aria-label="Day status for ' + k + '">' +
+          NS.SO.map(function (x) { return '<option value="' + x + '"' + (st === x ? ' selected' : '') + '>' + NS.ST[x].l + '</option>'; }).join('') +
+          '</select>' +
+          '<input class="note" data-dnote="' + k + '" placeholder="Note — camp, festival, half day…" value="' + esc(e.note || '') + '">') +
+      (mqPrint.matches ? '' : '<span class="dayacts">' +
       '<button data-add="' + k + '" title="Add a patient row" aria-label="Add a patient row"><svg width="14" height="14"><use href="#i-plus"/></svg></button>' +
       '<button data-daysearch="' + k + '" title="Search inside this day" aria-label="Search inside this day"><svg width="13" height="13"><use href="#i-search"/></svg></button>' +
       '<button data-printday="' + k + '" title="Print this day" aria-label="Print this day"><svg width="13" height="13"><use href="#i-print"/></svg></button>' +
       '<button class="danger" data-clear="' + k + '" title="Clear this day" aria-label="Clear this day"><svg width="13" height="13"><use href="#i-trash"/></svg></button>' +
-      '</span></div>';
+      '</span>') + '</div>';
     if (open) {
       var list = rowsMatching(k);
       if (S.rowFilter && !list.length) {
         h += '<div class="empty" style="padding:14px">No row in this day matches “' + esc(S.rowFilter) + '”.</div>';
+      } else if (mqPrint.matches) {
+        h += printTableHTML(k, list);
       } else {
         h += narrow() ? cardsHTML(k, list) : tableHTML(k, list);
       }
@@ -3801,6 +3877,7 @@ tr.dragging td{opacity:.45}
       if (document.querySelector('#view-register') && !document.querySelector('#view-register').hidden) renderRegister();
     }, 250));
     if (mqNarrow.addEventListener) mqNarrow.addEventListener('change', function () { renderRegister(); });
+    if (mqPrint.addEventListener) mqPrint.addEventListener('change', function () { renderRegister(); });
   }
 
   function syncMonthInputs() {
@@ -5205,6 +5282,40 @@ tr.dragging td{opacity:.45}
 
   /* The lock is optional, and the choice is made once and remembered — a prompt that
      nags every launch is the reason people turn features off. */
+  /* a register that is only in one browser deserves a nudge once a week */
+  function maybeShowBackupNotice() {
+    var el = $('#backupNotice');
+    if (!el) return;
+    var total = NS.allCases({ allLoc: true }).length;
+    var week = 7 * 864e5;
+    var stale = !NS.S.lastBackup || (Date.now() - NS.S.lastBackup) > week;
+    var snoozed = NS.S.backupSnooze && (Date.now() - NS.S.backupSnooze) < 3 * 864e5;
+    var show = !NS.isDemo() && total > 0 && stale && !snoozed && !(NS.S.locked && NS.S.lockedNow);
+    el.hidden = !show;
+    if (show) {
+      var sub = $('#backupNoticeSub');
+      if (sub) {
+        sub.textContent = NS.S.lastBackup
+          ? 'Last export ' + Math.round((Date.now() - NS.S.lastBackup) / 864e5) + ' days ago · ' + total + ' patients in this browser only.'
+          : total + ' patients are in this browser only. Export a copy.';
+      }
+    }
+  }
+
+  function bindBackupNotice() {
+    var now = $('#btnBackupNow'), later = $('#btnBackupLater');
+    if (now) now.addEventListener('click', function () {
+      NS.exportJson();
+      $('#backupNotice').hidden = true;
+    });
+    if (later) later.addEventListener('click', function () {
+      NS.S.backupSnooze = Date.now();
+      NS.settingsSave();
+      $('#backupNotice').hidden = true;
+      NS.toast('Asked again in three days.');
+    });
+  }
+
   function maybeShowNotice() {
     var el = $('#lockNotice');
     if (!el) return;
@@ -5398,6 +5509,7 @@ tr.dragging td{opacity:.45}
     bindRange();
     bindLockPanel();
     bindNotice();
+    bindBackupNotice();
     bindIdle();
     bindKeys();
 
@@ -5427,6 +5539,34 @@ tr.dragging td{opacity:.45}
     $('#btnDelLoc').addEventListener('click', deleteLocation);
     $('#btnExportJson').addEventListener('click', NS.exportJson);
     $('#btnExportCsvAll').addEventListener('click', function () { NS.exportMonthCsv(NS.S.curM); });
+    var rt = $('#btnRoundTrip');
+    if (rt) rt.addEventListener('click', function () {
+      var before = JSON.stringify(NS.db);
+      var parsed, after;
+      try {
+        parsed = JSON.parse(before);
+        after = NS.validDB(parsed);
+      } catch (e) {
+        NS.toast('The round trip failed: the file could not be read back.');
+        return;
+      }
+      var count = function (db) {
+        var n = 0;
+        Object.keys(db.locations).forEach(function (l) {
+          var E = db.locations[l].entries || {};
+          Object.keys(E).forEach(function (k) { n += ((E[k] || {}).rows || []).filter(NS.hasD).length; });
+        });
+        return n;
+      };
+      var a = count(NS.db), b = count(after);
+      var sameShape = JSON.stringify(Object.keys(NS.db.locations).sort()) === JSON.stringify(Object.keys(after.locations).sort());
+      if (a === b && sameShape) {
+        NS.toast('Round trip OK — ' + a + ' patient(s), ' + Object.keys(NS.db.locations).length + ' location(s), read back identical.');
+      } else {
+        NS.toast('Round trip mismatch: ' + a + ' patients here, ' + b + ' read back.');
+      }
+    });
+
     var sc = $('#setCols'), st = $('#setTarget');
     if (sc) {
       sc.value = NS.locOrder ? NS.locOrder(NS.db.current) : NS.S.colOrder;
@@ -5684,6 +5824,26 @@ tr.dragging td{opacity:.45}
       var parts = b.dataset.cf.split(':');
       applyConflict(+parts[0], +parts[1], parts[2]);
     });
+    if ($('#cfPrint')) $('#cfPrint').addEventListener('click', function () {
+      var rows = conflicts.map(function (c) {
+        return '<tr><td>' + NS.esc(c.name || 'Unnamed') + '</td><td>' + NS.esc(NS.fmtDay(c.day)) + '</td>' +
+          c.fields.map(function (f) {
+            return NS.esc(f.f) + ': ' + NS.esc(String(f.mine) || '—') + ' / ' + NS.esc(String(f.theirs) || '—');
+          }).join('<br>') + '</td><td style="width:70px"></td><td style="width:70px"></td></tr>';
+      }).join('');
+      $('#slip').innerHTML =
+        '<div class="sliphead"><div><b>' + NS.esc(NS.db.current) + '</b><span>Differences after an import — to settle at the desk</span></div>' +
+        '<div style="text-align:right"><b>' + conflicts.length + ' to resolve</b><span>' + new Date().toLocaleDateString() + '</span></div></div>' +
+        '<table class="st"><thead><tr><th>Patient</th><th>Day</th><th>Field · here / file</th><th>Tick one</th><th>Tick one</th></tr></thead><tbody>' +
+        rows + '</tbody></table>' +
+        '<div class="slipfoot"><span>Signature: ____________________</span><span>Prepared from the OPD register</span></div>';
+      document.body.classList.add('printing-slip');
+      setTimeout(function () {
+        window.print();
+        setTimeout(function () { document.body.classList.remove('printing-slip'); }, 400);
+      }, 40);
+    });
+
     ['#cfClose', '#cfDone'].forEach(function (sel) {
       var el = $(sel);
       if (el) el.addEventListener('click', function () {
@@ -5836,6 +5996,7 @@ tr.dragging td{opacity:.45}
     renderLocUI();
     updateStoreInfo();
     maybeShowNotice();
+    maybeShowBackupNotice();
     armIdle();
 
     var hash = (location.hash || '').replace('#', '');

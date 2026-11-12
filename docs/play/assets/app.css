@@ -864,6 +864,38 @@ tr.dragging td{opacity:.45}
   main{padding:0}
   .panel{border:0;box-shadow:none}
   .dayhead{position:static;background:#f2f2f2!important;print-color-adjust:exact}
+  /* content-visibility skips off-screen boxes; on paper there is no screen */
+  .day{content-visibility:visible!important;contain-intrinsic-size:none!important}
+  /* The printed register is a text table, so nothing is clipped and no placeholder prints. */
+  table.reg.print{table-layout:fixed;width:100%;min-width:0;font-size:8pt;border-collapse:collapse}
+  table.reg.print thead th{font-size:6.5pt;padding:3px 3px;letter-spacing:0;background:#eef1f5!important;print-color-adjust:exact}
+  table.reg.print td{padding:2.5px 3px;border-bottom:1px solid #ccc;white-space:normal;word-break:break-word;
+    vertical-align:top;line-height:1.25;font-size:8pt;color:#111}
+  table.reg.print tr:hover td{background:transparent}
+  /* with table-layout:fixed the HEADER row decides the widths, so the number column needs
+     its width there too, or it collapses and the OPD numbers slide over it */
+  table.reg.print thead th:first-child{width:4.5%}
+  table.reg.print .sr{width:4.5%;text-align:center;color:#666;position:static!important;background:transparent!important}
+  .dayhead .selx{border:0!important;background:transparent!important;padding-left:0;font-size:9pt}
+  .dayhead .note{border:0!important;background:transparent!important;font-size:9pt;color:#333}
+  table.reg.print [data-c="opd"]{width:8%}
+  table.reg.print [data-c="caseType"]{width:5%}
+  table.reg.print [data-c="department"]{width:12%}
+  table.reg.print [data-c="name"]{width:15%}
+  table.reg.print [data-c="age"]{width:4.5%}
+  table.reg.print [data-c="sex"]{width:4%}
+  table.reg.print [data-c="diagnosis"]{width:24%}
+  table.reg.print [data-c="treatment"]{width:24%}
+  table.reg.print [data-c="followUp"]{width:8%}
+  body.printing-register .pagehead{display:none!important}
+  .pagehead .btn,.pagehead .grow{display:none!important}   /* a Print button on paper is a joke */
+  /* an empty field must print as an empty line, not as grey placeholder text */
+  input::placeholder,textarea::placeholder{color:transparent!important}
+  .dayhead .note{border:0!important;background:transparent!important}
+  .dayhead .note::placeholder{color:transparent!important}
+  body.printing-stats .stats-controls,body.printing-stats .pagehead{display:none!important}
+  body.printing-stats #statOutput{border:0;padding:0}
+  body.printing-week .wsum,body.printing-week .pagehead{display:none!important}
   .tablewrap{display:block!important;max-height:none;overflow:visible}
   table.reg{min-width:0;font-size:9.5pt}
   .cellin{border:0;height:auto;padding:2px 4px}

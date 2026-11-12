@@ -103,7 +103,7 @@
   var DB = null;
   var S = { theme: 'light', filter: 'all', statMode: 'day', statCols: null, curM: '', curD: '', open: {},
             colOrder: 'default', colOrderByLoc: {}, lockIdle: 10, target: 0, monthTarget: 0, lastImport: null,
-            csvMaps: {},
+            csvMaps: {}, lastBackup: 0, backupSnooze: 0,
             locked: false, lockedNow: false, lockChoice: '' };
   var events = {};
   var saveState = 'saved';
@@ -154,6 +154,8 @@
         if (typeof st.lockIdle === 'number') S.lockIdle = st.lockIdle;
         if (st.lastImport) S.lastImport = st.lastImport;
         if (st.csvMaps && typeof st.csvMaps === 'object') S.csvMaps = st.csvMaps;
+        if (typeof st.lastBackup === 'number') S.lastBackup = st.lastBackup;
+        if (typeof st.backupSnooze === 'number') S.backupSnooze = st.backupSnooze;
         if (typeof st.target === 'number') S.target = st.target;
         if (typeof st.monthTarget === 'number') S.monthTarget = st.monthTarget;
         if (st.lockChoice === 'on' || st.lockChoice === 'off') S.lockChoice = st.lockChoice;
@@ -200,7 +202,8 @@
       localStorage.setItem(KS, JSON.stringify({
         theme: S.theme, filter: S.filter, colOrder: S.colOrder, colOrderByLoc: S.colOrderByLoc,
         lockIdle: S.lockIdle, target: S.target, monthTarget: S.monthTarget,
-        lockChoice: S.lockChoice, lastImport: S.lastImport, csvMaps: S.csvMaps
+        lockChoice: S.lockChoice, lastImport: S.lastImport, csvMaps: S.csvMaps,
+        lastBackup: S.lastBackup, backupSnooze: S.backupSnooze
       }));
     } catch (e) {}
   }
@@ -549,6 +552,8 @@
           exported: new Date().toISOString(), sha256: sum, hmac: mac || undefined, data: DB
         };
         download('opd-register-backup-' + todayKey() + '.json', JSON.stringify(payload, null, 2), 'application/json');
+        S.lastBackup = Date.now();
+        settingsSave();
         toast(mac ? 'Backup saved, signed with your passphrase.'
           : (sum ? 'Backup saved, with a checksum.' : 'Backup saved — every location, every month.'));
       });

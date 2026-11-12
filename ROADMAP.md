@@ -41,6 +41,9 @@ the printed week.
 **3.12.0** — a conflict queue resolved per field · passphrase-signed backups · the month CSV
 in the register's own order · CSV mappings remembered per file shape.
 
+**3.13.0** — printing fixed (text table, A4 widths, no placeholders) · printable conflict
+sheet · round-trip test · backup-age reminder.
+
 ## Next (small, high value)
 
 | Item | Why | Cost |
